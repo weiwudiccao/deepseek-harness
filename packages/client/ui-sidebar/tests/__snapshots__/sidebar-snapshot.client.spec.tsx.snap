@@ -80,6 +80,14 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         />
       </div>
       <div
+        class="identityArea"
+      >
+        <div
+          data-slot="sidebar.identity"
+          style="display: contents;"
+        />
+      </div>
+      <div
         class="settingsArea"
       >
         <div
@@ -143,7 +151,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
                 <span
                   class="localBuildTitle"
                 >
-                  DSH Local Build
+                  Qifu AI Brain
                 </span>
                 <span
                   class="buildVersion"
@@ -206,6 +214,14 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       >
         <div
           data-slot="sidebar.footer.action"
+          style="display: contents;"
+        />
+      </div>
+      <div
+        class="identityArea"
+      >
+        <div
+          data-slot="sidebar.identity"
           style="display: contents;"
         />
       </div>
@@ -273,7 +289,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                 <span
                   class="localBuildTitle"
                 >
-                  DSH 本地构建
+                  企福AI智脑
                 </span>
                 <span
                   class="buildVersion"
@@ -336,6 +352,14 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       >
         <div
           data-slot="sidebar.footer.action"
+          style="display: contents;"
+        />
+      </div>
+      <div
+        class="identityArea"
+      >
+        <div
+          data-slot="sidebar.identity"
           style="display: contents;"
         />
       </div>

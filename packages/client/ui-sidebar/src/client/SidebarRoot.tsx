@@ -213,6 +213,9 @@ export function SidebarRoot({
         <div className={css.footerActions}>
           {renderSlot('sidebar.footer.action', { wide })}
         </div>
+        <div className={css.identityArea}>
+          {renderSlot('sidebar.identity', { wide })}
+        </div>
         <div className={css.settingsArea}>
           {renderSlot('sidebar.settings', { wide })}
         </div>

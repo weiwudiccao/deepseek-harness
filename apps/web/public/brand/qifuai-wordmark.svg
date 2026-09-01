@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="24" viewBox="0 0 160 24">
+  <style>
+    text { fill: #0f1115; }
+    @media (prefers-color-scheme: dark) { text { fill: #fff; } }
+  </style>
+  <defs>
+    <clipPath id="qifuai-mark-clip">
+      <circle cx="12" cy="12" r="12" />
+    </clipPath>
+  </defs>
+  <image href="qifuai-logo.png" x="0" y="0" width="24" height="24" clip-path="url(#qifuai-mark-clip)" />
+  <text x="32" y="17" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">企福AI智脑</text>
+</svg>

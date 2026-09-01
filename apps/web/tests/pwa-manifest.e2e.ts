@@ -12,16 +12,16 @@ it('ships install metadata with the built web application', async () => {
   const manifest: unknown = JSON.parse(await readFile(join(DIST_ROOT, 'manifest.webmanifest'), 'utf8'))
   expect(manifest).toEqual({
     id: '/',
-    name: 'DeepSeek Harness',
-    short_name: 'DSH',
+    name: '企福AI智脑',
+    short_name: '企福AI',
     start_url: '/',
     scope: '/',
     display: 'fullscreen',
     icons: [{
-      src: '/favicon.svg',
-      sizes: 'any',
-      type: 'image/svg+xml',
-      purpose: 'any',
+      src: '/brand/qifuai-logo.png',
+      sizes: '1024x1024',
+      type: 'image/png',
+      purpose: 'any maskable',
     }],
   })
 })

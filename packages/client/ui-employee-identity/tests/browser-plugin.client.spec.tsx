@@ -13,7 +13,7 @@ async function bench(declare = true) {
   const slots = ctx.get('slots') as SlotRegistry
   const declareSeat = () => slots.register({
     name: 'root',
-    children: { 'sidebar.identity': { kind: 'single', scope: 'root' } },
+    children: { 'settings.account': { kind: 'single', scope: 'root' } },
   } as never, () => null)
   const disposeSeat = declare ? declareSeat() : undefined
   return { ctx, slots, declareSeat, disposeSeat }
@@ -28,21 +28,21 @@ describe('employee identity browser plugin', () => {
     const before = await bench()
     const fiber = before.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(before.slots.entries('sidebar.identity')[0]?.component).toBe(EmployeeIdentityRow)
+    expect(before.slots.entries('settings.account')[0]?.component).toBe(EmployeeIdentityRow)
 
     before.disposeSeat?.()
-    expect(before.slots.entries('sidebar.identity')).toHaveLength(0)
+    expect(before.slots.entries('settings.account')).toHaveLength(0)
     before.declareSeat()
     await Promise.resolve()
-    expect(before.slots.entries('sidebar.identity')).toHaveLength(1)
+    expect(before.slots.entries('settings.account')).toHaveLength(1)
     await fiber.dispose()
-    expect(before.slots.entries('sidebar.identity')).toHaveLength(0)
+    expect(before.slots.entries('settings.account')).toHaveLength(0)
 
     const after = await bench(false)
     await after.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(after.slots.entries('sidebar.identity')).toHaveLength(0)
+    expect(after.slots.entries('settings.account')).toHaveLength(0)
     after.declareSeat()
     await Promise.resolve()
-    expect(after.slots.entries('sidebar.identity')[0]?.component).toBe(EmployeeIdentityRow)
+    expect(after.slots.entries('settings.account')[0]?.component).toBe(EmployeeIdentityRow)
   })
 })

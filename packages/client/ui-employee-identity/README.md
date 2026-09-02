@@ -1,5 +1,5 @@
 ---
-description: "Authenticated employee name and designation at the Web sidebar foot for deployments using a same-origin employee gateway and per-account runtime isolation."
+description: "Authenticated employee account at the Web sidebar foot with Settings revealed from its menu for same-origin gateway deployments."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package shows the authenticated employee name and designation directly above Settings in the Web sidebar. Choose it for a deployment whose same-origin gateway exposes the current OA employee through `/auth/session`; the expanded sidebar shows both values, while the collapsed rail keeps an identity icon with a tooltip. The package validates the network response, disables HTTP caching, and stores no employee identity in browser storage. It only confirms the active identity visually: the gateway must enforce authentication and per-employee DSH runtime isolation.
+This package shows the authenticated employee name and designation as the Web sidebar account control. Choose it for a deployment whose same-origin gateway exposes the current OA employee through `/auth/session`; the expanded sidebar shows both values, while the collapsed rail keeps an initials avatar with a tooltip. Settings stays hidden until the user opens the account menu. The package validates the network response, disables HTTP caching, and stores no employee identity in browser storage. It only confirms the active identity visually: the gateway must enforce authentication and per-employee DSH runtime isolation.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Mount this plugin with the locale, renderer, and sidebar browser rows in an auth
 
 ### When to choose it
 
-Choose this package when a deployment needs visible confirmation of the OA employee who owns the current DSH runtime. Leave it out when the Web surface has no employee gateway; the optional `sidebar.identity` seat then stays empty.
+Choose this package when a deployment needs visible confirmation of the OA employee who owns the current DSH runtime and a compact account menu at the sidebar foot. Leave it out when the Web surface has no employee gateway; ui-settings-general then keeps its direct Settings trigger.
 
 ### Minimal configuration
 
@@ -41,7 +41,7 @@ The plugin accepts no configuration fields. The generated [configuration catalog
 
 ### Failure behavior
 
-An absent, rejected, or invalid `/auth/session` response renders no identity row. A network or response-read failure also leaves the row empty and reports the failure to the browser console; it does not expose stale identity data.
+An absent, rejected, or invalid `/auth/session` response renders the direct Settings trigger. A network or response-read failure also uses that fallback and reports the failure to the browser console; it does not expose stale identity data.
 
 -----
 
@@ -51,7 +51,7 @@ An absent, rejected, or invalid `/auth/session` response renders no identity row
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The browser plugin registers typed Chinese and English dictionaries and occupies the declaration-aware `sidebar.identity` seat. `EmployeeIdentityRow` performs one cancellable same-origin read when it mounts; the parser accepts only a successful response with non-empty employee id and name plus a string designation. The expanded row renders the profile values, and the collapsed row lets the shared Tooltip primitive expose the same values without widening the rail.
+The browser plugin registers typed Chinese and English dictionaries and occupies the declaration-aware `settings.account` seat. `EmployeeIdentityRow` performs one cancellable same-origin read when it mounts; the parser accepts only a successful response with non-empty employee id and name plus a string designation. The expanded button renders the profile values, the collapsed button keeps an initials avatar, and the shared Menu primitive reveals Settings above the account control. The settings shell supplies the panel-opening callback and retains panel lifecycle ownership.
 
 | File | Role |
 |---|---|
@@ -69,7 +69,7 @@ The browser plugin registers typed Chinese and English dictionaries and occupies
 
 Read these pages when the identity row is not enough. They move from the sidebar seat to the deployment boundary that owns isolation.
 
-- [ui-sidebar](../ui-sidebar/README.md) — declares and positions `sidebar.identity` above Settings.
+- [ui-settings](../ui-settings/README.md) — declares `settings.account` and the other settings slots.
 - [Web client architecture](../../../docs/subsystems/web-client.md) — browser plugin loading and slot composition.
 - [Employee runtime isolation decision](../../../.agents/notes/implemented/feature/2026-09-01-employee-runtime-isolation-and-identity.md) — gateway ownership, storage boundary, and rejected alternatives.
 
@@ -93,7 +93,7 @@ These limits define what the identity row can guarantee. They are current packag
 
 - **Presentation is not authorization** — the same-origin gateway must select an employee-owned DSH runtime for every HTTP and WebSocket request; this package cannot isolate a shared runtime.
 - **One read per login** — a name or designation changed in OA becomes visible after the next successful employee login, not through live profile push.
-- **No standalone fallback** — an invalid or unavailable gateway profile leaves the seat empty rather than displaying the OA User id or cached identity.
+- **Generic fallback** — an invalid or unavailable gateway profile shows the direct Settings trigger rather than an OA User id or cached identity.
 
 <a id="dev-note"></a>
 ### Dev Note

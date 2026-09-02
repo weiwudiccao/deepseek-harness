@@ -16,13 +16,13 @@ The authentication gateway keys runtime ownership by the authenticated OA User i
 
 The OA login response is the identity authority. The gateway retains only the stable User id, employee id, employee name, designation, OA session cookie, and gateway session timing; it never retains the submitted password. `/auth/session` returns the employee display fields for the authenticated browser session.
 
-The Web client exposes an optional `sidebar.identity` seat directly above Settings. `@deepseek-ai/dsh-client-ui-employee-identity` reads `/auth/session` with same-origin credentials and no HTTP cache, validates the network response, and displays the employee name and designation. The collapsed rail keeps only the identity icon and supplies the two values through a tooltip. The package does not persist identity in browser storage.
+The settings shell exposes an optional `settings.account` seat at the sidebar foot. `@deepseek-ai/dsh-client-ui-employee-identity` reads `/auth/session` with same-origin credentials and no HTTP cache, validates the network response, and replaces the direct Settings trigger with the employee name, designation, and initials avatar. Settings appears inside the account menu and opens through a shell-owned callback, so the settings package retains panel lifecycle ownership. The collapsed rail keeps the initials avatar and supplies the two profile values through a tooltip. The package does not persist identity in browser storage; an unavailable profile restores the direct Settings trigger.
 
 This boundary isolates DSH-owned Sessions, settings, credentials, and other data rooted at `DSH_HOME`. It does not create a separate source checkout or filesystem workspace for each employee: the deployment still chooses the working directory and filesystem policy independently.
 
 ## Verification
 
-Gateway tests pin stable distinct storage keys, same-employee startup coalescing, different `DSH_HOME` values, runtime teardown, per-user HTTP routing, distinct DSH cookies, and the employee fields returned by `/auth/session`. Client tests pin response validation, expanded name/designation rendering, collapsed rendering, unavailable-profile behavior, slot lifecycle, and sidebar snapshots.
+Gateway tests pin stable distinct storage keys, same-employee startup coalescing, different `DSH_HOME` values, runtime teardown, per-user HTTP routing, distinct DSH cookies, and the employee fields returned by `/auth/session`. Client tests pin response validation, expanded name/designation rendering, collapsed rendering, click-to-reveal Settings behavior, unavailable-profile fallback, slot lifecycle, and sidebar snapshots.
 
 ## Alternatives considered
 
@@ -32,7 +32,7 @@ Gateway tests pin stable distinct storage keys, same-employee startup coalescing
 
 **Create a fixed systemd unit and port for every employee.** Employee inventory changes dynamically, fixed ports require separate allocation, and inactive employees would consume processes. Lazy gateway-owned processes preserve durable homes without pre-provisioning every account.
 
-**Put employee fetching in `ui-sidebar`.** The sidebar is a composition shell. The optional seat keeps deployment authentication outside the generic shell and lets deployments without an employee gateway leave the seat empty.
+**Put employee fetching in `ui-sidebar`.** The sidebar is a composition shell. The optional settings account seat keeps deployment authentication outside the generic shell, while deployments without an employee gateway retain the shell's direct Settings trigger.
 
 ## Consequences
 

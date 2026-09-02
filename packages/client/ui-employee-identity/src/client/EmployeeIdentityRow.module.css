@@ -1,13 +1,40 @@
-.root {
+.menu {
+  width: 100%;
+  min-width: 0;
+}
+
+.tooltipAnchor {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.root,
+.settingsFallback {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 0;
   width: 100%;
-  min-height: 44px;
-  padding: 6px 8px;
+  min-height: 54px;
+  margin: 0;
+  padding: 6px 10px 6px 8px;
   box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
   color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.root {
+  gap: 10px;
+}
+
+.root:hover,
+.settingsFallback:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .avatar {
@@ -15,11 +42,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  color: var(--dsw-alias-label-primary-inverted);
-  background: var(--dsw-alias-label-primary);
+  color: #fff;
+  background: #b84a43;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .copy {
@@ -27,7 +57,7 @@
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
 }
 
 .name,
@@ -47,4 +77,34 @@
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.settingsFallback {
+  gap: 8px;
+  height: 42px;
+  min-height: 42px;
+}
+
+.railMenu {
+  width: 36px;
+}
+
+.root.rail,
+.settingsFallback.rail {
+  justify-content: center;
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.root.rail .avatar {
+  width: 32px;
+  height: 32px;
 }

@@ -324,7 +324,6 @@
 }
 
 .settingsArea,
-.identityArea,
 .footerActions {
   flex: none;
   min-width: 0;
@@ -340,7 +339,6 @@
 }
 
 .collapsed .settingsArea,
-.collapsed .identityArea,
 .collapsed .footerActions {
   display: flex;
   justify-content: center;

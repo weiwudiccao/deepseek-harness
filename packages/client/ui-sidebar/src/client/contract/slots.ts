@@ -4,9 +4,8 @@
  * owns column geometry (fold state machine, brand row, New Session);
  * everything between the section header and the list bottom is the
  * `sidebar.workspaces` registrant's (ui-workspace), and the foot is the
- * `sidebar.settings` registrant's (ui-settings), preceded by the optional
- * authenticated identity in `sidebar.identity` and footer actions in
- * `sidebar.footer.action`.
+ * `sidebar.settings` registrant's (ui-settings), preceded by optional footer
+ * actions in `sidebar.footer.action`.
  */
 import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -40,12 +39,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * The sidebar passes only its column state — it holds no settings state.
      */
     'sidebar.settings': { kind: 'single'; scope: 'root'; owner: SidebarSettingsOwnerProps }
-    /**
-     * Optional authenticated employee identity directly above Settings.
-     * Declared by this package's `sidebar` entry; deployments that own an
-     * identity boundary may fill it without coupling that boundary to the shell.
-     */
-    'sidebar.identity': { kind: 'single'; scope: 'root'; owner: SidebarIdentityOwnerProps }
     /**
      * Optional actions beside Settings at the sidebar foot. Declared by this
      * package's 'sidebar' entry; each action receives only the column state.
@@ -86,12 +79,6 @@ export interface SidebarSettingsOwnerProps {
   wide: boolean
 }
 
-/** Owner share of the authenticated identity seat at the sidebar foot. */
-export interface SidebarIdentityOwnerProps {
-  /** Whether the sidebar renders wide content (false = 56px rail). */
-  wide: boolean
-}
-
 /** Owner share of an action rendered beside Settings at the sidebar foot. */
 export interface SidebarFooterActionOwnerProps {
   /** Whether the sidebar renders wide content (false = 56px rail). */
@@ -125,7 +112,6 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
     | 'sidebar.workspaces'
-    | 'sidebar.identity'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

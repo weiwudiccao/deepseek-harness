@@ -56,7 +56,8 @@ function mount({
   const connectionListeners = new Set<() => void>()
   const reconnect = vi.fn()
   const renderSlot = vi.fn(
-    ((key: string, _owner: unknown, opts?: { only?: string }) => {
+    ((key: string, _owner: unknown, opts?: { only?: string; fallback?: unknown }) => {
+      if (key === 'settings.account') return opts?.fallback
       if (key === 'settings.section') return <div data-testid={`section-${opts?.only ?? 'all'}`} />
       return SEAT_CONTENT[key]
     }) as SettingsRootComponentProps['renderSlot'],
@@ -125,6 +126,10 @@ describe('SettingsRoot trigger', () => {
     const { renderSlot } = mount()
     const trigger = screen.getByRole('button', { name: 'Settings' })
     expect(trigger.hasAttribute('aria-label')).toBe(false)
+    const accountCall = renderSlot.mock.calls.find(([key]) => key === 'settings.account')
+    expect(accountCall?.[1]).toMatchObject({ wide: true })
+    expect(typeof (accountCall?.[1] as { openSettings?: unknown } | undefined)?.openSettings).toBe('function')
+    expect(accountCall?.[2]).toHaveProperty('fallback')
     expect(renderSlot).toHaveBeenCalledWith('settings.trigger', { wide: true })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(trigger)

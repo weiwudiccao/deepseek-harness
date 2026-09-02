@@ -6,6 +6,7 @@ export const NS = 'employeeIdentity'
 export const zh = {
   'label': '当前员工',
   'designation.unset': '未设置岗位',
+  'settings': '设置',
 } satisfies Record<string, string>
 
 /** Identity dictionary key union. */
@@ -15,6 +16,7 @@ export type EmployeeIdentityKey = keyof typeof zh
 export const en = {
   'label': 'Current employee',
   'designation.unset': 'No job title',
+  'settings': 'Settings',
 } satisfies Record<EmployeeIdentityKey, string>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

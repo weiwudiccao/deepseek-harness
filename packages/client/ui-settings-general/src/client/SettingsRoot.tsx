@@ -113,6 +113,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
   const [showRecovery, setShowRecovery] = useState(false)
+  const accountArea = useRef<HTMLDivElement | null>(null)
   const triggerButton = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(open)
   const close = useCallback(() => {
@@ -121,9 +122,14 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   }, [])
   // Restore after the close commit, when the dialog can no longer own focus.
   useEffect(() => {
-    if (wasOpen.current && !open) triggerButton.current?.focus()
+    if (wasOpen.current && !open) {
+      const accountButton = accountArea.current?.querySelector<HTMLButtonElement>('button')
+      const focusTarget = accountButton ?? triggerButton.current
+      focusTarget?.focus()
+    }
     wasOpen.current = open
   }, [open])
+  const openSettings = useCallback(() => { setOpen(true) }, [])
   const openSection = useCallback((id: string) => {
     setActiveId(id)
     setOpen(true)
@@ -179,17 +185,21 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
 
   return (
     <>
-      <div className={clsx(css.triggerRow, !wide && css.railRow)}>
-        <button
-          ref={triggerButton}
-          type="button"
-          className={clsx(css.trigger, !wide && css.rail)}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => { setOpen(true) }}
-        >
-          {renderSlot('settings.trigger', { wide })}
-        </button>
+      <div ref={accountArea} className={clsx(css.triggerRow, !wide && css.railRow)}>
+        {renderSlot('settings.account', { wide, openSettings }, {
+          fallback: (
+            <button
+              ref={triggerButton}
+              type="button"
+              className={clsx(css.trigger, !wide && css.rail)}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              onClick={openSettings}
+            >
+              {renderSlot('settings.trigger', { wide })}
+            </button>
+          ),
+        })}
         <ConnectionIndicator
           state={wide ? connectionIndicator : undefined}
           disconnectedLabel={t('connection.error')}

@@ -14,6 +14,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
+     * Optional account control at the sidebar foot. The settings shell owns
+     * panel visibility and supplies the action that opens it; authenticated
+     * deployments may replace the direct Settings trigger with an account
+     * menu without owning the panel lifecycle.
+     */
+    'settings.account': { kind: 'single'; scope: 'root'; owner: SettingsAccountOwnerProps }
+    /**
      * The sidebar-foot trigger row content: icon + label, supplied as slot
      * content (the accessible name comes from the content — rail state
      * renders the label visually hidden). The shell renders the button
@@ -88,6 +95,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'settings.general.item': { kind: 'list'; scope: 'root'; owner: SettingsGeneralItemOwnerProps }
   }
+}
+
+/** Owner share of the optional account control at the sidebar foot. */
+export interface SettingsAccountOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+  /** Open the settings panel. */
+  openSettings: () => void
 }
 /** Owner share of a General preference row (the section supplies nothing). */
 export interface SettingsGeneralItemOwnerProps {

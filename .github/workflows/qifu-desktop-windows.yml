@@ -1,0 +1,64 @@
+name: Qifu desktop Windows package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/update-alpha3-20260901
+    paths:
+      - .github/workflows/qifu-desktop-windows.yml
+      - apps/cli/**
+      - apps/web/**
+      - packages/boot/app-boot/**
+      - packages/bundle/web-app/**
+      - packages/client/ui-employee-identity/**
+      - packages/client/ui-qifu-work-surface/**
+      - packages/client/ui-sidebar/**
+      - python/sdk-runtime/**
+      - qifu/desktop/**
+      - scripts/build-exe-for-python-sdk*
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm-qifu-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile --prod=false
+
+      - name: Build DeepSeek Harness
+        run: pnpm run build
+
+      - name: Build Windows DSH runtime
+        run: node --import tsx scripts/build-exe-for-python-sdk.ts --skip-build --targets=node24-win-x64
+
+      - name: Install desktop packaging dependencies
+        working-directory: qifu/desktop
+        run: npm ci
+
+      - name: Build Windows portable client
+        working-directory: qifu/desktop
+        run: npm run pack:win
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: QifuAI-Brain-Server-Client-0.1.2-alpha.5-windows-x64
+          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.5-windows-x64.exe
+          if-no-files-found: error
+          retention-days: 30

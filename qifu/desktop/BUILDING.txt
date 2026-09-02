@@ -4,4 +4,5 @@
 2. 进入 qifu/desktop，执行 npm install。
 3. macOS 执行 npm run pack:mac；Windows x64 执行 npm run pack:win。
 4. prepare 脚本只复制公开品牌图和运行时；网关私钥、模型密钥、员工密码不得进入源码或安装包。
-5. 正式发布前必须分别完成 macOS Developer ID 公证验收和 Windows 真机安装、登录、功能、云端、本机及单项同步验收。
+5. 推送保护分支后，qifu-desktop-windows 工作流会生成同版本 Windows x64 便携包；下载后仍须在真实 Windows 设备验收。
+6. 正式发布前必须分别完成 macOS Developer ID 公证验收和 Windows 真机安装、登录、功能、云端、本机及单项同步验收。

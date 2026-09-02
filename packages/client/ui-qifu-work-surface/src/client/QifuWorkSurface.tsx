@@ -3,7 +3,7 @@ import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/c
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import {
   IconChevronDownOutline14, IconChevronRightOutline14, IconDataOutline16,
-  IconDatabaseOutline16, IconFolderClose16,
+  IconDatabaseOutline16, IconDownloadOutline16, IconFolderClose16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -85,6 +85,9 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
     if (desktop === undefined || currentSession === undefined) return
     runSync(() => desktop.syncSession(String(currentSession.id), currentSession.displayTitle))
   }
+  const downloadCloudItem = (item: QifuCloudItem): void => {
+    if (desktop !== undefined) runSync(() => desktop.downloadCloudItem(item.id, item.title))
+  }
   const featureRows = state.status === 'ready' && state.features.length > 0
     ? state.features.map(feature => (
       <button
@@ -100,18 +103,32 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
     : <div className={css.empty}>{state.status === 'loading' ? t('loading') : t('empty.features')}</div>
   const cloudRows = state.status === 'ready' && state.cloud.length > 0
     ? state.cloud.map(item => (
-      <button
-        key={item.id}
-        type="button"
-        className={css.row}
-        onClick={() => { if (mode === 'local') switchRuntime('cloud') }}
-      >
-        <span className={css.cloudItemIcon} aria-hidden><IconDatabaseOutline16 size={15} /></span>
-        <span className={css.rowCopy}>
-          <span className={css.rowTitle}>{item.title}</span>
-          <span className={css.rowMeta}>{t(`kind.${item.kind}` as QifuWorkSurfaceKey)}</span>
-        </span>
-      </button>
+      <div key={item.id} className={css.cloudRow}>
+        <button
+          type="button"
+          className={css.row}
+          onClick={() => { if (mode === 'local') switchRuntime('cloud') }}
+        >
+          <span className={css.cloudItemIcon} aria-hidden><IconDatabaseOutline16 size={15} /></span>
+          <span className={css.rowCopy}>
+            <span className={css.rowTitle}>{item.title}</span>
+            <span className={css.rowMeta}>
+              {`${t(`kind.${item.kind}` as QifuWorkSurfaceKey)} · ${t('version')} ${item.version}`}
+            </span>
+          </span>
+        </button>
+        {item.downloadable && desktop !== undefined && (
+          <button
+            type="button"
+            className={css.downloadButton}
+            aria-label={`${t('download')} ${item.title}`}
+            disabled={syncState.busy}
+            onClick={() => { downloadCloudItem(item) }}
+          >
+            <IconDownloadOutline16 size={15} />
+          </button>
+        )}
+      </div>
     ))
     : <div className={css.empty}>{state.status === 'loading' ? t('loading') : t('empty.cloud')}</div>
 

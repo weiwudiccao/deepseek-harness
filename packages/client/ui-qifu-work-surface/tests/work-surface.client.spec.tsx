@@ -29,6 +29,7 @@ function installDesktop(
     openFeature: vi.fn(async () => ({ ok: true })),
     syncFile: vi.fn(async () => ({ ok: true })),
     syncSession: vi.fn(async () => ({ ok: true })),
+    downloadCloudItem: vi.fn(async () => ({ ok: true })),
   }
   Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: bridge })
   return bridge
@@ -50,7 +51,10 @@ describe('Qifu employee sidebar composition', () => {
         }],
       },
       '/qifu/v1/cloud/items?limit=50': {
-        items: [{ id: 'cwi-1', kind: 'Conversation', title: '云端方案讨论', summary: '', status: 'Ready', modified: '' }],
+        items: [{
+          id: 'cwi-1', kind: 'Conversation', title: '云端方案讨论', summary: '', status: 'Ready',
+          version: 2, downloadable: true, modified: '',
+        }],
       },
     })
     render(<QifuWorkSurface {...({ wide: true, workspaces: <div>本机会话甲</div>, sessionList, t } as QifuWorkSurfaceProps)} />)
@@ -63,6 +67,8 @@ describe('Qifu employee sidebar composition', () => {
     expect(screen.getByText('本机会话甲')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /智剪工坊/u }))
     expect(bridge.openFeature).toHaveBeenCalledWith(expect.objectContaining({ feature_code: 'digital-employee-b1' }))
+    fireEvent.click(screen.getByRole('button', { name: '下载到本机 云端方案讨论' }))
+    expect(bridge.downloadCloudItem).toHaveBeenCalledWith('cwi-1', '云端方案讨论')
   })
 
   it('switches from cloud mode to the device runtime only after an explicit click', async () => {
@@ -104,6 +110,54 @@ describe('Qifu personalization settings', () => {
     expect(bridge.gatewayRequest).toHaveBeenCalledWith('/qifu/v1/personalization', {
       method: 'POST',
       body: { ...initial, memory_read: true },
+    })
+  })
+
+  it('lets the employee confirm or delete only their projected memories', async () => {
+    const initial = {
+      work_profile_read: true,
+      memory_read: true,
+      memory_write: true,
+      local_context_read: true,
+      policy_version: '2026-09-02-v1',
+    }
+    const bridge = installDesktop({
+      '/qifu/v1/personalization': {
+        consent: initial,
+        memory_items: [
+          { id: 'mem-1', category: 'Role Focus', value: '优先处理产品方案', status: 'Proposed' },
+          { id: 'mem-2', category: 'Active Topic', value: '正在推进客户端', status: 'Active' },
+        ],
+      },
+    })
+    bridge.gatewayRequest.mockImplementation(async (path: string) => {
+      if (path === '/qifu/v1/personalization') {
+        return {
+          status: 200,
+          body: {
+            consent: initial,
+            memory_items: [
+              { id: 'mem-1', value: '优先处理产品方案', status: 'Proposed' },
+              { id: 'mem-2', value: '正在推进客户端', status: 'Active' },
+            ],
+          },
+        }
+      }
+      return { status: 200, body: { ok: true } }
+    })
+    render(<PersonalizationSection {...({ t } as PersonalizationSectionProps)} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '确认记忆 优先处理产品方案' }))
+    await waitFor(() => {
+      expect(bridge.gatewayRequest).toHaveBeenCalledWith('/qifu/v1/personalization/memory/confirm', {
+        method: 'POST', body: { memory_id: 'mem-1' },
+      })
+    })
+    fireEvent.click(screen.getByRole('button', { name: '删除记忆 正在推进客户端' }))
+    await waitFor(() => {
+      expect(bridge.gatewayRequest).toHaveBeenCalledWith('/qifu/v1/personalization/memory/forget', {
+        method: 'POST', body: { memory_id: 'mem-2' },
+      })
     })
   })
 })

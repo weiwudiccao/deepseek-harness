@@ -28,6 +28,7 @@ context 组提供不定义任何工具、为每次请求添加模型可见上下
 | [`session-reference/`](session-reference/README.zh.md) | 引用其他会话：提及一个会话，其有界只读快照即成为上下文 | `ctx.sessionReferenceResolver` |
 | [`file-reference/`](file-reference/README.zh.md) | `@file` mention 发现与供宿主驱动 UI 使用的共享 mention 语法 | `ctx.fileReferences` |
 | [`file-reference-local/`](file-reference-local/README.zh.md) | `@file` mention 的本地工作区补全提供方 | — |
+| [`qifu-account-context/`](qifu-account-context/README.zh.md) | 员工授权的企福 OA 画像与账号记忆快照 | — |
 | [`time-context/`](time-context/README.zh.md) | 每个步骤的当前时间、浏览器时区与经过时长 | — |
 | [`tmux-context/`](tmux-context/README.zh.md) | agent 所在的 tmux session、window 与 pane 位置 | — |
 

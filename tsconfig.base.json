@@ -392,6 +392,8 @@
       "@deepseek-ai/dsh-pwsh-local/invariant": ["./packages/shell/pwsh-local/src/invariant.ts"],
       "@deepseek-ai/dsh-pwsh-sandbox": ["./packages/shell/pwsh-sandbox/src"],
       "@deepseek-ai/dsh-pwsh-sandbox/invariant": ["./packages/shell/pwsh-sandbox/src/invariant.ts"],
+      "@deepseek-ai/dsh-qifu-account-context": ["./packages/context/qifu-account-context/src"],
+      "@deepseek-ai/dsh-qifu-account-context/invariant": ["./packages/context/qifu-account-context/src/invariant.ts"],
       "@deepseek-ai/dsh-repeat-tool-reminder": ["./packages/guard/repeat-tool-reminder/src"],
       "@deepseek-ai/dsh-repeat-tool-reminder/invariant": ["./packages/guard/repeat-tool-reminder/src/invariant.ts"],
       "@deepseek-ai/dsh-sandbox": ["./packages/sandbox/sandbox/src"],

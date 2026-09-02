@@ -1584,6 +1584,30 @@ Depends on: [`LocalConfig`](#deepseek-aidsh-pwsh-local)
 
 Source: [`packages/shell/pwsh-sandbox/src/index.ts:40`](../packages/shell/pwsh-sandbox/src/index.ts)
 
+<a id="deepseek-aidsh-qifu-account-context"></a>
+
+## `@deepseek-ai/dsh-qifu-account-context`
+
+Requires: `agents`
+
+```ts config-catalog
+/** Named environment variables and network limits for the Qifu context source. */
+export interface Config {
+  /** Environment variable containing the certificate-validated HTTPS endpoint. */
+  endpointEnv: string
+  /** Environment variable containing the current employee gateway session token. */
+  tokenEnv: string
+  /** Environment variable containing `true` for a local workspace or `false` for cloud work. */
+  localContextEnv: string
+  /** Maximum time allowed for one context request. */
+  timeoutMs: number
+  /** Maximum JSON response size accepted from the gateway. */
+  maxResponseBytes: number
+}
+```
+
+Source: [`packages/context/qifu-account-context/src/index.ts:28`](../packages/context/qifu-account-context/src/index.ts)
+
 <a id="deepseek-aidsh-repeat-tool-reminder"></a>
 
 ## `@deepseek-ai/dsh-repeat-tool-reminder`

@@ -1,6 +1,6 @@
 {
   "name": "qifuaigent-employee-gateway",
-  "version": "0.1.2-alpha.5",
+  "version": "0.1.2-alpha.6",
   "private": true,
   "type": "module",
   "description": "Employee-authenticated HTTPS gateway for the QifuAI Brain service.",

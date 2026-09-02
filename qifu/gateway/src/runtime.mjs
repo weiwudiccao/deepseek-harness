@@ -1,15 +1,86 @@
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { request as httpRequest } from 'node:http'
 import { isAbsolute, join } from 'node:path'
 
 const READY_PATTERN = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/)\?token=([A-Za-z0-9_-]+)/u
 const MAX_STARTUP_OUTPUT_BYTES = 64 * 1024
+const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3'
+const QIFU_CONTEXT_PATCH = `- insert:
+    - id: qifu-account-context
+      name: '@deepseek-ai/dsh-qifu-account-context'
+      config:
+        endpointEnv: QIFUAI_CONTEXT_URL
+        tokenEnv: QIFUAI_CONTEXT_TOKEN
+        localContextEnv: QIFUAI_CONTEXT_LOCAL
+        timeoutMs: 5000
+        maxResponseBytes: 16384
+    - id: qifu-account-context-invariant
+      name: '@deepseek-ai/dsh-qifu-account-context/invariant'
+`
 
-function validateRuntimeOptions({ cliPath, cwd, dataRoot }) {
-  for (const [name, value] of Object.entries({ cliPath, cwd, dataRoot })) {
+function validateRuntimeOptions({ cliPath, cwd, dataRoot, certificatePath }) {
+  for (const [name, value] of Object.entries({ cliPath, cwd, dataRoot, certificatePath })) {
     if (typeof value !== 'string' || !isAbsolute(value)) throw new Error(`${name} must be an absolute path`)
+  }
+}
+
+function validateContextOrigin(value) {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== ''
+    || url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+    throw new Error('contextOrigin must be an HTTPS origin')
+  }
+  return url.origin
+}
+
+async function writeAtomic(file, content) {
+  const temporary = `${file}.tmp`
+  await writeFile(temporary, content, { mode: 0o600 })
+  await rename(temporary, file)
+}
+
+async function readOptional(file) {
+  try {
+    return await readFile(file, 'utf8')
+  } catch (error) {
+    if (error?.code === 'ENOENT') return ''
+    throw error
+  }
+}
+
+/** Ensure one employee runtime profile includes only the managed Qifu context extension. */
+export async function ensureEmployeeWebProfile(dshHome) {
+  if (typeof dshHome !== 'string' || !isAbsolute(dshHome)) throw new Error('DSH_HOME must be an absolute path')
+  const profileDir = join(dshHome, 'profiles', 'web')
+  await mkdir(profileDir, { recursive: true, mode: 0o700 })
+  await writeAtomic(join(profileDir, 'package.json'), `${JSON.stringify({
+    name: 'dsh-profile-web',
+    private: true,
+    dependencies: { '@deepseek-ai/dsh-qifu-account-context': QIFU_CONTEXT_PLUGIN_VERSION },
+    dsh: {
+      profile: {
+        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
+        patchReload: 'startup',
+      },
+    },
+  }, null, 2)}\n`)
+  const baseFiles = new Map([
+    ['cordis.yml', '[]\n'],
+    ['pnpm-workspace.yaml', 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n'],
+  ])
+  for (const [name, content] of baseFiles) {
+    const file = join(profileDir, name)
+    if (await readOptional(file) === '') await writeAtomic(file, content)
+  }
+  const patchPath = join(profileDir, 'cordis.patch.yml')
+  const existingPatch = await readOptional(patchPath)
+  if (!existingPatch.includes('id: qifu-account-context')) {
+    const nextPatch = existingPatch.trim() === '' || existingPatch.trim() === '[]'
+      ? QIFU_CONTEXT_PATCH
+      : `${existingPatch.trimEnd()}\n${QIFU_CONTEXT_PATCH}`
+    await writeAtomic(patchPath, nextPatch)
   }
 }
 
@@ -61,9 +132,12 @@ export function createDshRuntimeProvider(options) {
   const cliPath = options.cliPath
   const cwd = options.cwd
   const dataRoot = options.dataRoot
-  validateRuntimeOptions({ cliPath, cwd, dataRoot })
+  const certificatePath = options.certificatePath
+  validateRuntimeOptions({ cliPath, cwd, dataRoot, certificatePath })
+  const contextOrigin = validateContextOrigin(options.contextOrigin)
   const spawnImpl = options.spawnImpl ?? spawn
   const mkdirImpl = options.mkdirImpl ?? mkdir
+  const prepareHomeImpl = options.prepareHomeImpl ?? ensureEmployeeWebProfile
   const exchangeImpl = options.exchangeImpl ?? exchangeDshToken
   const startupTimeoutMs = options.startupTimeoutMs ?? 30_000
   const entries = new Map()
@@ -76,17 +150,24 @@ export function createDshRuntimeProvider(options) {
       && entry.child.signalCode === null) entry.child.kill('SIGTERM')
   }
 
-  async function start(user) {
+  async function start(user, sessionToken) {
     if (disposed) throw new Error('employee DSH runtime provider is disposed')
+    if (typeof sessionToken !== 'string' || !/^[A-Za-z0-9_-]+$/u.test(sessionToken)) {
+      throw new Error('employee gateway session token is required')
+    }
     const key = employeeStorageKey(user)
+    const tokenHash = createHash('sha256').update(sessionToken).digest('base64url')
     const existing = entries.get(key)
-    if (existing !== undefined) return existing.ready
+    if (existing !== undefined && existing.tokenHash === tokenHash) return existing.ready
+    if (existing !== undefined) stop(key, existing)
 
-    const entry = { child: undefined, ready: undefined }
+    const entry = { child: undefined, ready: undefined, tokenHash }
     entry.ready = (async () => {
       const home = join(dataRoot, key)
       await mkdirImpl(home, { recursive: true, mode: 0o700 })
-      if (disposed) throw new Error('employee DSH runtime provider is disposed')
+      const dshHome = join(home, '.dsh')
+      await prepareHomeImpl(dshHome)
+      if (disposed || entries.get(key) !== entry) throw new Error('employee DSH runtime start was superseded')
 
       const child = spawnImpl('/usr/bin/node', [
         cliPath, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open',
@@ -95,9 +176,13 @@ export function createDshRuntimeProvider(options) {
         env: {
           ...process.env,
           HOME: home,
-          DSH_HOME: join(home, '.dsh'),
+          DSH_HOME: dshHome,
           CI: 'true',
           NODE_ENV: 'production',
+          NODE_EXTRA_CA_CERTS: certificatePath,
+          QIFUAI_CONTEXT_URL: `${contextOrigin}/qifu/v1/personalization/context`,
+          QIFUAI_CONTEXT_TOKEN: sessionToken,
+          QIFUAI_CONTEXT_LOCAL: 'false',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       })

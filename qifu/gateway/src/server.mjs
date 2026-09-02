@@ -30,8 +30,9 @@ const host = process.env.QIFU_GATEWAY_HOST ?? '0.0.0.0'
 const port = Number(process.env.QIFU_GATEWAY_PORT ?? '3443')
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('QIFU_GATEWAY_PORT must be a TCP port')
 
+const certificatePath = required('QIFU_GATEWAY_TLS_CERT')
 const [certificate, privateKey] = await Promise.all([
-  readFile(required('QIFU_GATEWAY_TLS_CERT')),
+  readFile(certificatePath),
   readFile(required('QIFU_GATEWAY_TLS_KEY')),
 ])
 const modelApiKey = await readCredentialRef(
@@ -42,6 +43,8 @@ const runtimes = createDshRuntimeProvider({
   cliPath: process.env.QIFU_GATEWAY_DSH_CLI ?? '/root/qifuaigent/apps/cli/lib/bin.js',
   cwd: process.env.QIFU_GATEWAY_DSH_CWD ?? '/root/qifuaigent',
   dataRoot: process.env.QIFU_GATEWAY_USER_DATA_ROOT ?? '/var/lib/qifuaigent/users',
+  certificatePath,
+  contextOrigin: required('QIFU_GATEWAY_PUBLIC_ORIGIN'),
 })
 const gateway = createGateway({
   authenticator: createFrappeAuthenticator({

@@ -106,6 +106,7 @@
     "@deepseek-ai/dsh-file-reference-local": "workspace:^",
     "@deepseek-ai/dsh-launch-environment": "workspace:^",
     "@deepseek-ai/dsh-message-feedback": "workspace:^",
+    "@deepseek-ai/dsh-qifu-account-context": "workspace:^",
     "@deepseek-ai/dsh-session-reference": "workspace:^",
     "@deepseek-ai/dsh-session-log-export": "workspace:^",
     "@deepseek-ai/dsh-session-stats": "workspace:^",

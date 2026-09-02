@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('qifuDesktop', {
   openFeature: (feature) => ipcRenderer.invoke('desktop:open-feature', feature),
   syncFile: () => ipcRenderer.invoke('desktop:sync-file'),
   syncSession: (sessionId, title) => ipcRenderer.invoke('desktop:sync-session', { sessionId, title }),
+  downloadCloudItem: (itemId, title) => ipcRenderer.invoke('desktop:download-cloud-item', { itemId, title }),
   onStatus: (listener) => {
     const wrapped = (_event, value) => listener(value);
     ipcRenderer.on('desktop:status', wrapped);

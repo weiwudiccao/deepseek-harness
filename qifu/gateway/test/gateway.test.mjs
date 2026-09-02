@@ -175,14 +175,46 @@ test('cloud and personalization routes forward only the authenticated OA session
 
   assert.equal(response.status, 200)
   assert.deepEqual(await response.json(), { items: [{ id: 'cwi-1', title: '云端对话' }] })
-  assert.deepEqual(requests, [{
-    cookie: 'sid=oa-a',
-    csrf: 'csrf-oa-a',
-    method: 'GET',
-    pathname: '/api/method/zkkg_ai.api.cloud_work.list_items',
-    search: '?kind=Conversation',
-    body: undefined,
-  }])
+  const download = await fetch(new URL('/qifu/v1/cloud/item/download', server.origin), {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ item_id: 'cwi-1', device_id: 'device-a' }),
+  })
+  assert.equal(download.status, 200)
+  const token = cookie.split('=', 2)[1]
+  assert.ok(token)
+  const contextResponse = await fetch(new URL('/qifu/v1/personalization/context', server.origin), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ local_context: false, message: '请先给结论' }),
+  })
+  assert.equal(contextResponse.status, 200)
+  assert.deepEqual(requests, [
+    {
+      cookie: 'sid=oa-a',
+      csrf: 'csrf-oa-a',
+      method: 'GET',
+      pathname: '/api/method/zkkg_ai.api.cloud_work.list_items',
+      search: '?kind=Conversation',
+      body: undefined,
+    },
+    {
+      cookie: 'sid=oa-a',
+      csrf: 'csrf-oa-a',
+      method: 'POST',
+      pathname: '/api/method/zkkg_ai.api.cloud_work.download_item',
+      search: '',
+      body: '{"item_id":"cwi-1","device_id":"device-a"}',
+    },
+    {
+      cookie: 'sid=oa-a',
+      csrf: 'csrf-oa-a',
+      method: 'POST',
+      pathname: '/api/method/zkkg_ai.api.personalization.get_personalization_context',
+      search: '',
+      body: '{"local_context":false,"message":"请先给结论"}',
+    },
+  ])
 })
 
 test('authenticated employees receive isolated upstream runtimes and employee metadata', async (context) => {
@@ -210,6 +242,7 @@ test('authenticated employees receive isolated upstream runtimes and employee me
     [identities['employee-a'].user, { origin: employeeA.origin, cookie: 'dsh-auth-a=signed', invalidate() {} }],
     [identities['employee-b'].user, { origin: employeeB.origin, cookie: 'dsh-auth-b=signed', invalidate() {} }],
   ])
+  const runtimeRequests = []
   const gateway = createGateway({
     authenticator: {
       async login(account) { return identities[account] },
@@ -217,7 +250,10 @@ test('authenticated employees receive isolated upstream runtimes and employee me
       async logout() {},
     },
     runtimes: {
-      async get(user) { return runtimeByUser.get(user) },
+      async get(user, token) {
+        runtimeRequests.push({ user, token })
+        return runtimeByUser.get(user)
+      },
       dispose() {},
     },
     secureCookies: false,
@@ -249,6 +285,11 @@ test('authenticated employees receive isolated upstream runtimes and employee me
   assert.deepEqual(sessionA.employee, identities['employee-a'].employee)
   assert.deepEqual(probeA, { label: 'employee-a-runtime', cookie: 'dsh-auth-a=signed' })
   assert.deepEqual(probeB, { label: 'employee-b-runtime', cookie: 'dsh-auth-b=signed' })
+  assert.deepEqual(runtimeRequests.map(request => request.user), [
+    'employee-a@example.com',
+    'employee-b@example.com',
+  ])
+  assert.ok(runtimeRequests.every(request => typeof request.token === 'string' && request.token.length > 0))
 })
 
 test('local runtimes use their employee session token without receiving the server model credential', async (context) => {

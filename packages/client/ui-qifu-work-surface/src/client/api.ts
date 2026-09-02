@@ -18,6 +18,8 @@ export interface QifuCloudItem {
   readonly title: string
   readonly summary: string
   readonly status: string
+  readonly version: number
+  readonly downloadable: boolean
   readonly modified: string
 }
 
@@ -28,6 +30,22 @@ export interface QifuConsent {
   readonly memory_write: boolean
   readonly local_context_read: boolean
   readonly policy_version: string
+}
+
+/** One current employee-owned memory shown for review or deletion. */
+export interface QifuMemoryItem {
+  readonly id: string
+  readonly category: string
+  readonly value: string
+  readonly status: 'Active' | 'Proposed'
+  readonly expires_at: string
+  readonly modified: string
+}
+
+/** Complete employee personalization settings response. */
+export interface QifuPersonalization {
+  readonly consent: QifuConsent
+  readonly memoryItems: readonly QifuMemoryItem[]
 }
 
 /** Employee-authorized feature manifest plus its current personalization summary. */
@@ -49,6 +67,7 @@ export interface QifuDesktopBridge {
   openFeature(feature: QifuFeature): Promise<{ ok: boolean }>
   syncFile(): Promise<{ ok: boolean; cancelled?: boolean; message?: string }>
   syncSession(sessionId: string, title: string): Promise<{ ok: boolean; message?: string }>
+  downloadCloudItem(itemId: string, title: string): Promise<{ ok: boolean; cancelled?: boolean; message?: string }>
 }
 
 declare global {
@@ -123,6 +142,8 @@ export async function readCloudItems(): Promise<readonly QifuCloudItem[]> {
       title: row.title,
       summary: typeof row.summary === 'string' ? row.summary : '',
       status: typeof row.status === 'string' ? row.status : '',
+      version: typeof row.version === 'number' && Number.isSafeInteger(row.version) ? row.version : 1,
+      downloadable: row.downloadable === true,
       modified: typeof row.modified === 'string' ? row.modified : '',
     }]
   })
@@ -133,16 +154,62 @@ export async function readCloudItems(): Promise<readonly QifuCloudItem[]> {
  * @returns all four choices and the current OA policy version.
  */
 export async function readConsent(): Promise<QifuConsent> {
+  return (await readPersonalization()).consent
+}
+
+/**
+ * Read consent plus employee-owned active and proposed memories.
+ * @returns the complete personalization settings surface.
+ */
+export async function readPersonalization(): Promise<QifuPersonalization> {
   const value = await gatewayJson('/qifu/v1/personalization')
   const consent = isRecord(value) && isRecord(value.consent) ? value.consent : undefined
   if (consent === undefined || typeof consent.policy_version !== 'string') throw new Error('QIFU_CONSENT_INVALID')
+  const memoryItems = isRecord(value) && Array.isArray(value.memory_items)
+    ? value.memory_items.filter(isRecord).flatMap((row): QifuMemoryItem[] => {
+      if (typeof row.id !== 'string'
+        || typeof row.value !== 'string'
+        || (row.status !== 'Active' && row.status !== 'Proposed')) return []
+      return [{
+        id: row.id,
+        category: typeof row.category === 'string' ? row.category : '',
+        value: row.value,
+        status: row.status,
+        expires_at: typeof row.expires_at === 'string' ? row.expires_at : '',
+        modified: typeof row.modified === 'string' ? row.modified : '',
+      }]
+    })
+    : []
   return {
-    work_profile_read: consent.work_profile_read === true,
-    memory_read: consent.memory_read === true,
-    memory_write: consent.memory_write === true,
-    local_context_read: consent.local_context_read === true,
-    policy_version: consent.policy_version,
+    consent: {
+      work_profile_read: consent.work_profile_read === true,
+      memory_read: consent.memory_read === true,
+      memory_write: consent.memory_write === true,
+      local_context_read: consent.local_context_read === true,
+      policy_version: consent.policy_version,
+    },
+    memoryItems,
   }
+}
+
+/**
+ * Confirm one proposed employee memory.
+ * @param memoryId - opaque id from the employee-scoped memory projection.
+ */
+export async function confirmMemory(memoryId: string): Promise<void> {
+  await gatewayJson('/qifu/v1/personalization/memory/confirm', {
+    method: 'POST', body: { memory_id: memoryId },
+  })
+}
+
+/**
+ * Remove one employee memory from future context assembly.
+ * @param memoryId - opaque id from the employee-scoped memory projection.
+ */
+export async function forgetMemory(memoryId: string): Promise<void> {
+  await gatewayJson('/qifu/v1/personalization/memory/forget', {
+    method: 'POST', body: { memory_id: memoryId },
+  })
 }
 
 /**

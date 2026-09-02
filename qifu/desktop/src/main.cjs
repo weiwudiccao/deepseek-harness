@@ -18,19 +18,36 @@ const GATEWAY_SESSION_COOKIE = 'qifuai_gateway_session';
 const READY_PATTERN = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+)/u;
 const MAX_STARTUP_OUTPUT = 64 * 1024;
 const MAX_SYNC_BYTES = 25 * 1024 * 1024;
+const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3';
+const QIFU_CONTEXT_PATCH = `- insert:
+    - id: qifu-account-context
+      name: '@deepseek-ai/dsh-qifu-account-context'
+      config:
+        endpointEnv: QIFUAI_CONTEXT_URL
+        tokenEnv: QIFUAI_CONTEXT_TOKEN
+        localContextEnv: QIFUAI_CONTEXT_LOCAL
+        timeoutMs: 5000
+        maxResponseBytes: 16384
+    - id: qifu-account-context-invariant
+      name: '@deepseek-ai/dsh-qifu-account-context/invariant'
+`;
 const GATEWAY_ROUTES = new Map([
   ['GET /auth/session', true],
   ['GET /qifu/v1/bootstrap', true],
   ['GET /qifu/v1/cloud/workspaces', true],
   ['GET /qifu/v1/cloud/items', true],
   ['GET /qifu/v1/cloud/item', true],
+  ['GET /qifu/v1/cloud/item/versions', true],
   ['GET /qifu/v1/personalization', true],
+  ['POST /qifu/v1/cloud/item/download', true],
   ['POST /qifu/v1/cloud/transfers/start', true],
   ['POST /qifu/v1/cloud/transfers/part', true],
   ['POST /qifu/v1/cloud/transfers/commit', true],
   ['POST /qifu/v1/cloud/transfers/cancel', true],
   ['POST /qifu/v1/personalization', true],
   ['POST /qifu/v1/personalization/memory/confirm', true],
+  ['POST /qifu/v1/personalization/memory/forget', true],
+  ['POST /qifu/v1/personalization/context', true],
 ]);
 
 let mainWindow;
@@ -253,7 +270,9 @@ function ensureLocalWebProfile(home) {
   const manifest = {
     name: 'dsh-profile-web',
     private: true,
-    dependencies: {},
+    dependencies: {
+      '@deepseek-ai/dsh-qifu-account-context': QIFU_CONTEXT_PLUGIN_VERSION,
+    },
     dsh: {
       profile: {
         bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
@@ -264,12 +283,19 @@ function ensureLocalWebProfile(home) {
   writeAtomic(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const files = new Map([
     ['cordis.yml', '[]\n'],
-    ['cordis.patch.yml', '[]\n'],
     ['pnpm-workspace.yaml', 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n'],
   ]);
   for (const [name, content] of files) {
     const file = path.join(profileDir, name);
     if (!fs.existsSync(file)) writeAtomic(file, content);
+  }
+  const patchPath = path.join(profileDir, 'cordis.patch.yml');
+  const existingPatch = fs.existsSync(patchPath) ? fs.readFileSync(patchPath, 'utf8') : '';
+  if (!existingPatch.includes('id: qifu-account-context')) {
+    const nextPatch = existingPatch.trim() === '' || existingPatch.trim() === '[]'
+      ? QIFU_CONTEXT_PATCH
+      : `${existingPatch.trimEnd()}\n${QIFU_CONTEXT_PATCH}`;
+    writeAtomic(patchPath, nextPatch);
   }
 }
 
@@ -307,6 +333,9 @@ async function startLocalRuntime() {
         DEEPSEEK_BASE_URL: `${GATEWAY_URL}/qifu-model/v1`,
         NODE_EXTRA_CA_CERTS: certificate,
         QIFUAI_DSH_ROOT: root,
+        QIFUAI_CONTEXT_URL: `${GATEWAY_URL}/qifu/v1/personalization/context`,
+        QIFUAI_CONTEXT_TOKEN: token,
+        QIFUAI_CONTEXT_LOCAL: 'true',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
@@ -453,6 +482,40 @@ async function syncSession(sessionId, title) {
   return { ok: true, message: '会话快照已同步到我的云端工作。' };
 }
 
+function safeDownloadName(value) {
+  const name = path.basename(String(value || 'cloud-content.bin')).replace(/[\u0000-\u001f<>:"/\\|?*]/gu, '_');
+  return name.slice(0, 180) || 'cloud-content.bin';
+}
+
+async function downloadCloudItem(itemId, title) {
+  if (typeof itemId !== 'string' || itemId === '') throw new Error('云端内容标识不正确。');
+  const result = await gatewayJson('/qifu/v1/cloud/item/download', {
+    method: 'POST',
+    body: { item_id: itemId, device_id: deviceId() },
+  });
+  const download = result?.download;
+  if (!download
+    || typeof download.content_base64 !== 'string'
+    || typeof download.content_digest !== 'string'
+    || !Number.isSafeInteger(download.content_size)
+    || download.content_size < 0
+    || download.content_size > MAX_SYNC_BYTES) {
+    throw new Error('云端下载内容格式不正确。');
+  }
+  const content = Buffer.from(download.content_base64, 'base64');
+  const digest = crypto.createHash('sha256').update(content).digest('hex');
+  if (content.length !== download.content_size || digest !== download.content_digest) {
+    throw new Error('云端下载内容校验失败。');
+  }
+  const defaultName = safeDownloadName(download.title || title);
+  const selection = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(app.getPath('downloads'), defaultName),
+  });
+  if (selection.canceled || typeof selection.filePath !== 'string') return { ok: false, cancelled: true };
+  fs.writeFileSync(selection.filePath, content, { mode: 0o600 });
+  return { ok: true, message: `已下载到 ${selection.filePath}` };
+}
+
 async function openFeature(feature) {
   const bootstrap = await gatewayJson('/qifu/v1/bootstrap');
   const authorized = Array.isArray(bootstrap.features)
@@ -544,6 +607,15 @@ ipcMain.handle('desktop:sync-file', async (event) => {
 ipcMain.handle('desktop:sync-session', async (event, input) => {
   assertAppSender(event);
   try { return await syncSession(input?.sessionId, input?.title); } catch (error) { return { ok: false, message: error.message }; }
+});
+
+ipcMain.handle('desktop:download-cloud-item', async (event, input) => {
+  assertAppSender(event);
+  try {
+    return await downloadCloudItem(input?.itemId, input?.title);
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
 });
 
 app.whenReady().then(async () => {

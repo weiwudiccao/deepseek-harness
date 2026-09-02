@@ -24,6 +24,8 @@ const OA_API_ROUTES = new Map([
   ['GET /qifu/v1/cloud/workspaces', '/api/method/zkkg_ai.api.cloud_work.list_workspaces'],
   ['GET /qifu/v1/cloud/items', '/api/method/zkkg_ai.api.cloud_work.list_items'],
   ['GET /qifu/v1/cloud/item', '/api/method/zkkg_ai.api.cloud_work.get_item'],
+  ['GET /qifu/v1/cloud/item/versions', '/api/method/zkkg_ai.api.cloud_work.list_item_versions'],
+  ['POST /qifu/v1/cloud/item/download', '/api/method/zkkg_ai.api.cloud_work.download_item'],
   ['POST /qifu/v1/cloud/transfers/start', '/api/method/zkkg_ai.api.cloud_work.start_transfer'],
   ['POST /qifu/v1/cloud/transfers/part', '/api/method/zkkg_ai.api.cloud_work.put_transfer_part'],
   ['POST /qifu/v1/cloud/transfers/commit', '/api/method/zkkg_ai.api.cloud_work.commit_transfer'],
@@ -31,6 +33,8 @@ const OA_API_ROUTES = new Map([
   ['GET /qifu/v1/personalization', '/api/method/zkkg_ai.api.personalization.get_personalization'],
   ['POST /qifu/v1/personalization', '/api/method/zkkg_ai.api.personalization.update_personalization'],
   ['POST /qifu/v1/personalization/memory/confirm', '/api/method/zkkg_ai.api.personalization.confirm_memory'],
+  ['POST /qifu/v1/personalization/memory/forget', '/api/method/zkkg_ai.api.personalization.forget_memory'],
+  ['POST /qifu/v1/personalization/context', '/api/method/zkkg_ai.api.personalization.get_personalization_context'],
 ])
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -661,7 +665,8 @@ export function createGateway(options) {
       }
       return
     }
-    const authenticated = await requireSession(request, response)
+    const presentedToken = bearerTokenFrom(request) ?? tokenFrom(request)
+    const authenticated = await requireSession(request, response, presentedToken)
     if (authenticated === undefined) return
     if (url.pathname === SESSION_PATH) {
       json(response, 200, {
@@ -676,7 +681,7 @@ export function createGateway(options) {
         json(response, 200, await authenticator.bootstrap(authenticated.record.oaCookie))
       } catch (error) {
         if (error instanceof InvalidCredentialsError) {
-          sessions.remove(tokenFrom(request))
+          sessions.remove(presentedToken)
           json(response, 401, { ok: false, message: '登录已失效，请重新登录。' }, {
             'set-cookie': expiredSessionCookie(cookieName, secureCookies),
           })
@@ -704,7 +709,7 @@ export function createGateway(options) {
         )
       } catch (error) {
         if (error instanceof InvalidCredentialsError) {
-          sessions.remove(tokenFrom(request))
+          sessions.remove(presentedToken)
           json(response, 401, { ok: false, message: '登录已失效，请重新登录。' }, {
             'set-cookie': expiredSessionCookie(cookieName, secureCookies),
           })
@@ -718,20 +723,21 @@ export function createGateway(options) {
       return
     }
     try {
-      proxyHttp(request, response, await runtimes.get(authenticated.record.user))
+      proxyHttp(request, response, await runtimes.get(authenticated.record.user, presentedToken))
     } catch {
       json(response, 502, { ok: false, message: '企福AI智脑服务暂时不可用。' })
     }
   }
 
   async function handleUpgrade(request, socket, head) {
-    const authenticated = await sessions.resolve(tokenFrom(request))
+    const presentedToken = tokenFrom(request)
+    const authenticated = await sessions.resolve(presentedToken)
     if (authenticated === undefined) {
       socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
       return
     }
     try {
-      proxyUpgrade(request, socket, head, await runtimes.get(authenticated.record.user))
+      proxyUpgrade(request, socket, head, await runtimes.get(authenticated.record.user, presentedToken))
     } catch {
       socket.destroy()
     }

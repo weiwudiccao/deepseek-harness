@@ -1,0 +1,34 @@
+appId: cn.qifuyunai.brain.server-client
+productName: 企福AI智脑服务器客户端
+copyright: Copyright © 2026 QifuAI
+asar: true
+compression: normal
+directories:
+  output: dist
+files:
+  - src/**/*
+  - build/icon.png
+  - package.json
+extraResources:
+  - from: resources/dsh-runtime
+    to: dsh-runtime
+  - from: resources/certs
+    to: certs
+extraMetadata:
+  main: src/main.cjs
+mac:
+  category: public.app-category.developer-tools
+  identity: '-'
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.5-mac-arm64.${ext}
+win:
+  requestedExecutionLevel: asInvoker
+  target:
+    - target: portable
+      arch:
+        - x64
+portable:
+  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.5-windows-x64.${ext}

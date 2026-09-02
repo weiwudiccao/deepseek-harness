@@ -1,5 +1,5 @@
 ---
-description: "Authenticated employee account at the Web sidebar foot with Settings revealed from its menu for same-origin gateway deployments."
+description: "Authenticated employee account at the desktop sidebar foot with Settings revealed from its menu through an allowlisted preload bridge."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package shows the authenticated employee name and designation as the Web sidebar account control. Choose it for a deployment whose same-origin gateway exposes the current OA employee through `/auth/session`; the expanded sidebar shows both values, while the collapsed rail keeps an initials avatar with a tooltip. Settings stays hidden until the user opens the account menu. The package validates the network response, disables HTTP caching, and stores no employee identity in browser storage. It only confirms the active identity visually: the gateway must enforce authentication and per-employee DSH runtime isolation.
+This package shows the authenticated employee name and designation as the desktop sidebar account control. Choose it for a deployment whose preload bridge exposes the current OA employee from `/auth/session`; the expanded sidebar shows both values, while the collapsed rail keeps an initials avatar with a tooltip. Settings stays hidden until the user opens the account menu. The package validates the gateway response and stores no employee identity in browser storage. It only confirms the active identity visually: the gateway must enforce authentication and per-employee DSH runtime isolation.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ This package shows the authenticated employee name and designation as the Web si
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin with the locale, renderer, and sidebar browser rows in an authenticated Web composition. The gateway must answer `GET /auth/session` with `{ ok: true, employee: { id, name, designation } }` for the current browser session.
+Mount this plugin with the locale, renderer, and sidebar browser rows in the authenticated desktop composition. The preload bridge must answer `gatewayRequest('/auth/session')` with `{ status: 200, body: { ok: true, employee: { id, name, designation } } }` for the current desktop session.
 
 ### When to choose it
 
-Choose this package when a deployment needs visible confirmation of the OA employee who owns the current DSH runtime and a compact account menu at the sidebar foot. Leave it out when the Web surface has no employee gateway; ui-settings-general then keeps its direct Settings trigger.
+Choose this package when a desktop deployment needs visible confirmation of the OA employee who owns the current DSH runtime and a compact account menu at the sidebar foot. The plugin stays inactive when the preload bridge is absent, so ordinary Web surfaces keep the direct Settings trigger from ui-settings-general.
 
 ### Minimal configuration
 
@@ -41,7 +41,7 @@ The plugin accepts no configuration fields. The generated [configuration catalog
 
 ### Failure behavior
 
-An absent, rejected, or invalid `/auth/session` response renders the direct Settings trigger. A network or response-read failure also uses that fallback and reports the failure to the browser console; it does not expose stale identity data.
+An absent preload bridge or a rejected or invalid `/auth/session` response renders the direct Settings trigger. A gateway or response-read failure also uses that fallback and reports the failure to the browser console; it does not expose stale identity data.
 
 -----
 
@@ -51,7 +51,7 @@ An absent, rejected, or invalid `/auth/session` response renders the direct Sett
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The browser plugin registers typed Chinese and English dictionaries and occupies the declaration-aware `settings.account` seat. `EmployeeIdentityRow` performs one cancellable same-origin read when it mounts; the parser accepts only a successful response with non-empty employee id and name plus a string designation. The expanded button renders the profile values, the collapsed button keeps an initials avatar, and the shared Menu primitive reveals Settings above the account control. The settings shell supplies the panel-opening callback and retains panel lifecycle ownership.
+The browser plugin registers typed Chinese and English dictionaries and occupies the declaration-aware `settings.account` seat only when the desktop preload bridge exists. `EmployeeIdentityRow` performs one cancellable bridge request when it mounts; the parser accepts only a successful response with non-empty employee id and name plus a string designation. The expanded button renders the profile values, the collapsed button keeps an initials avatar, and the shared Menu primitive reveals Settings above the account control. The settings shell supplies the panel-opening callback and retains panel lifecycle ownership.
 
 | File | Role |
 |---|---|
@@ -91,7 +91,7 @@ None; the employee identity read and sidebar rendering never alter a provider re
 
 These limits define what the identity row can guarantee. They are current package constraints, not an authentication backlog.
 
-- **Presentation is not authorization** — the same-origin gateway must select an employee-owned DSH runtime for every HTTP and WebSocket request; this package cannot isolate a shared runtime.
+- **Presentation is not authorization** — the authenticated gateway must select an employee-owned DSH runtime for every HTTP and WebSocket request; this package cannot isolate a shared runtime.
 - **One read per login** — a name or designation changed in OA becomes visible after the next successful employee login, not through live profile push.
 - **Generic fallback** — an invalid or unavailable gateway profile shows the direct Settings trigger rather than an OA User id or cached identity.
 

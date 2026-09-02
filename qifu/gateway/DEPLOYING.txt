@@ -1,0 +1,7 @@
+企福员工网关部署约束
+
+1. 仅部署 package.json、src/ 和 deploy/qifuaigent-gateway.service；先在 staging 运行 npm test。
+2. /etc/qifuaigent-gateway.env、TLS 私钥和模型密钥只在服务器创建，权限设为 root 可读，不进入 Git。
+3. 更新前备份 /opt/qifuaigent-gateway 源码；生产数据库备份由 OA 发布流程单独负责。
+4. 更新后执行 systemctl daemon-reload、restart，并核服务 MainPID、启动时间、/healthz、未认证 401 与证书指纹。
+5. 客户端固定证书更新必须与网关证书切换作为同一受控发布，保留旧版回滚路径。

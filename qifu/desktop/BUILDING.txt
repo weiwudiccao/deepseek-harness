@@ -1,0 +1,7 @@
+企福桌面客户端可复现构建
+
+1. 先在仓库根目录构建对应平台的 DSH SEA 运行时，产物必须位于 dist-exe/。
+2. 进入 qifu/desktop，执行 npm install。
+3. macOS 执行 npm run pack:mac；Windows x64 执行 npm run pack:win。
+4. prepare 脚本只复制公开品牌图和运行时；网关私钥、模型密钥、员工密码不得进入源码或安装包。
+5. 正式发布前必须分别完成 macOS Developer ID 公证验收和 Windows 真机安装、登录、功能、云端、本机及单项同步验收。

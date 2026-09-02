@@ -195,6 +195,9 @@
     - id: ui-employee-identity
       name: '@deepseek-ai/dsh-client-ui-employee-identity'
 
+    - id: ui-qifu-work-surface
+      name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'
+
     - id: ui-settings
       name: '@deepseek-ai/dsh-client-ui-settings'
 

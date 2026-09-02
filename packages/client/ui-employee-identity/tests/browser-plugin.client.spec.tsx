@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
@@ -19,12 +19,23 @@ async function bench(declare = true) {
   return { ctx, slots, declareSeat, disposeSeat }
 }
 
+afterEach(() => {
+  Reflect.deleteProperty(window, 'qifuDesktop')
+})
+
 describe('employee identity browser plugin', () => {
   it('declares only the services it uses', () => {
     expect(inject).toEqual(['slots', 'locale'])
   })
 
+  it('leaves the ordinary Web settings trigger unchanged', async () => {
+    const ordinary = await bench()
+    await ordinary.ctx.plugin({ inject: [...inject], apply }).await()
+    expect(ordinary.slots.entries('settings.account')).toHaveLength(0)
+  })
+
   it('fills declarations before or after apply and tears down with its fiber', async () => {
+    Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: { gatewayRequest: vi.fn() } })
     const before = await bench()
     const fiber = before.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()

@@ -505,13 +505,17 @@ function resolveModuleFallbackEntries(
   // map itself (first resolution wins, matching Node's own nearest-wins).
   const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: installAnchor, manifest: appManifest }]
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    // pkg's virtual `/snapshot` tree is already the canonical packaged source,
+    // but the host filesystem must follow pnpm links into each dependency's
+    // physical node_modules tree before resolving its children.
+    const canonicalAnchor = isPackagedExecutable() ? next.anchor : realpathSync.native(next.anchor)
     // Peer dependencies participate: Service Definition packages (dsh-subprocess,
     // dsh-compaction, ...) are peers of their implementations, never plain
     // dependencies, yet out-of-tree plugins import them directly.
     /* v8 ignore next -- a real app manifest always declares dependencies */
     for (const dep of profileDependencyNames(next.manifest)) {
       if (links.has(dep)) continue
-      const dir = packageDirFromAnchor(next.anchor, dep)
+      const dir = packageDirFromAnchor(canonicalAnchor, dep)
       // A declared-but-uninstalled dependency cannot be a loader-visible
       // plugin; skip it rather than fail the whole boot.
       if (dir === undefined) continue

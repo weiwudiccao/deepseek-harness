@@ -7,6 +7,7 @@
  * `sidebar.settings` registrant's (ui-settings), preceded by optional footer
  * actions in `sidebar.footer.action`.
  */
+import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 // Type-only: pulls ui-layout's SlotMap merge (the 'sidebar' entry) into every
@@ -33,6 +34,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registers the browser.
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /**
+     * Optional deployment-owned navigation composition around the standard
+     * workspace browser. The shell supplies the rendered browser so a
+     * deployment can place it without importing ui-workspace internals.
+     */
+    'sidebar.workSurface': { kind: 'single'; scope: 'root'; owner: SidebarWorkSurfaceOwnerProps }
     /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
@@ -68,6 +75,12 @@ export interface SidebarSectionOwnerProps {
   wide: boolean
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
+}
+
+/** Deployment composition share for the sidebar navigation region. */
+export interface SidebarWorkSurfaceOwnerProps extends SidebarSectionOwnerProps {
+  /** Standard Workspace and Session browser owned by ui-workspace. */
+  workspaces: ReactNode
 }
 
 /**
@@ -112,6 +125,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
     | 'sidebar.workspaces'
+    | 'sidebar.workSurface'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

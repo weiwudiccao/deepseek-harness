@@ -16,6 +16,7 @@ export const inject = ['slots', 'locale']
 
 /** Register dictionaries and replace the direct Settings trigger with the employee account menu. */
 export function apply(ctx: ClientContext): void {
+  if ((window as Window & { qifuDesktop?: unknown }).qifuDesktop === undefined) return
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-employee-identity: dictionaries')
   ctx.slots.inject('settings.account', () => ctx.slots.register({
     name: 'settings.account',

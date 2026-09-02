@@ -122,6 +122,11 @@ export function SidebarRoot({
   }, [pointerInside])
 
   const buildVersion = localBuildVersion()
+  const sectionProps = {
+    wide,
+    expandSidebar: (): void => { if (collapsed) toggleSidebar() },
+  }
+  const workspaces = renderSlot('sidebar.workspaces', sectionProps)
 
   return (
     <div
@@ -202,10 +207,7 @@ export function SidebarRoot({
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
       <div className={css.regionArea}>
-        {renderSlot('sidebar.workspaces', {
-          wide,
-          expandSidebar: () => { if (collapsed) toggleSidebar() },
-        })}
+        {renderSlot('sidebar.workSurface', { ...sectionProps, workspaces }, { fallback: workspaces })}
       </div>
 
       {/* Footer actions stack above Settings in both sidebar widths. */}

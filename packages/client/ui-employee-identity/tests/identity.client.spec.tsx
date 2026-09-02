@@ -6,8 +6,15 @@ import { parseEmployeeIdentity } from '../src/client/identity.ts'
 
 afterEach(() => {
   cleanup()
-  vi.unstubAllGlobals()
+  Reflect.deleteProperty(window, 'qifuDesktop')
 })
+
+function installEmployeeBridge(response: Promise<{ readonly status: number; readonly body: unknown }>): void {
+  Object.defineProperty(window, 'qifuDesktop', {
+    configurable: true,
+    value: { gatewayRequest: vi.fn(() => response) },
+  })
+}
 
 const t: EmployeeIdentityRowProps['t'] = (key) => {
   if (key === 'label') return '当前员工'
@@ -33,10 +40,10 @@ describe('employee identity response', () => {
 
 describe('employee identity row', () => {
   it('shows employee name and designation in the expanded sidebar', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+    installEmployeeBridge(Promise.resolve({ status: 200, body: {
       ok: true,
       employee: { id: 'HR-EMP-0001', name: '员工甲', designation: '产品经理' },
-    }), { status: 200, headers: { 'content-type': 'application/json' } })))
+    } }))
     render(<EmployeeIdentityRow {...props(true)} />)
 
     await waitFor(() => { expect(screen.getByText('员工甲')).toBeTruthy() })
@@ -44,18 +51,14 @@ describe('employee identity row', () => {
     expect(screen.getByRole('button', { name: /当前员工：员工甲 · 产品经理/u })).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: '设置' })).toBeNull()
     expect(screen.getByText('员')).toBeTruthy()
-    expect(fetch).toHaveBeenCalledWith('/auth/session', expect.objectContaining({
-      credentials: 'same-origin',
-      cache: 'no-store',
-    }))
   })
 
   it('reveals Settings only after the employee account is clicked', async () => {
     const openSettings = vi.fn()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+    installEmployeeBridge(Promise.resolve({ status: 200, body: {
       ok: true,
       employee: { id: 'HR-EMP-0001', name: '陈建新', designation: '技术总监' },
-    }), { status: 200 })))
+    } }))
     render(<EmployeeIdentityRow {...props(true, openSettings)} />)
 
     const account = await screen.findByRole('button', { name: /陈建新 · 技术总监/u })
@@ -68,10 +71,10 @@ describe('employee identity row', () => {
   })
 
   it('keeps only the identity icon in the collapsed sidebar', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+    installEmployeeBridge(Promise.resolve({ status: 200, body: {
       ok: true,
       employee: { id: 'HR-EMP-0002', name: '员工乙', designation: '' },
-    }), { status: 200 })))
+    } }))
     render(<EmployeeIdentityRow {...props(false)} />)
 
     await waitFor(() => { expect(screen.getByRole('button', { name: /当前员工：员工乙/u })).toBeTruthy() })
@@ -80,7 +83,6 @@ describe('employee identity row', () => {
 
   it('keeps a direct Settings fallback when the gateway profile is unavailable', async () => {
     const openSettings = vi.fn()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
     render(<EmployeeIdentityRow {...props(true, openSettings)} />)
     const settings = await screen.findByRole('button', { name: '设置' })
     fireEvent.click(settings)
@@ -90,7 +92,7 @@ describe('employee identity row', () => {
   it('reports a gateway read failure while the row remains mounted', async () => {
     const error = new Error('network unavailable')
     const report = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.stubGlobal('fetch', vi.fn(async () => { throw error }))
+    installEmployeeBridge(Promise.reject(error))
     render(<EmployeeIdentityRow {...props(true)} />)
 
     await waitFor(() => {
@@ -104,9 +106,11 @@ describe('employee identity row', () => {
 
   it('suppresses a pending read failure after unmount', async () => {
     let reject: ((error: Error) => void) | undefined
-    const pending = new Promise<Response>((_resolve, rejectPromise) => { reject = rejectPromise })
+    const pending = new Promise<{ readonly status: number; readonly body: unknown }>((_resolve, rejectPromise) => {
+      reject = rejectPromise
+    })
     const report = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.stubGlobal('fetch', vi.fn(() => pending))
+    installEmployeeBridge(pending)
     const view = render(<EmployeeIdentityRow {...props(true)} />)
     view.unmount()
     reject?.(new Error('cancelled request'))

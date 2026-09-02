@@ -1,0 +1,26 @@
+[Unit]
+Description=QifuAI Brain Employee Gateway
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/qifuaigent-gateway
+EnvironmentFile=/etc/qifuaigent-gateway.env
+ExecStart=/usr/bin/node /opt/qifuaigent-gateway/src/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadOnlyPaths=/etc/qifuaigent-gateway
+StateDirectory=qifuaigent
+StateDirectoryMode=0700
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

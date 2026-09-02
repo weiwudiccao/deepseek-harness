@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>企福AI智脑</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0e1014; color: #f6f7fb; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 10%, #18233b 0, #0e1014 46%); }
+    main { width: min(460px, calc(100vw - 40px)); padding: 34px; border: 1px solid #2b3240; border-radius: 12px; background: rgba(19, 22, 29, .96); box-shadow: 0 28px 80px rgba(0, 0, 0, .42); }
+    header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+    img { width: 58px; height: 58px; border-radius: 14px; }
+    h1 { margin: 0 0 5px; font-size: 24px; font-weight: 650; }
+    .edition { margin: 0; color: #9ca7bb; font-size: 14px; }
+    .server { padding: 13px 14px; margin-bottom: 18px; border: 1px solid #30394a; border-radius: 8px; background: #151922; color: #cbd3e2; font-size: 14px; }
+    label { display: block; margin-bottom: 8px; color: #dfe4ef; font-size: 14px; }
+    input[type="text"], input[type="password"] { width: 100%; height: 44px; margin-bottom: 14px; padding: 0 12px; border: 1px solid #3a455a; border-radius: 7px; outline: none; background: #0d1118; color: #fff; font-size: 15px; }
+    input[type="text"]:focus, input[type="password"]:focus { border-color: #6b9cff; box-shadow: 0 0 0 3px rgba(80, 137, 255, .16); }
+    .remember { display: flex; align-items: center; gap: 9px; margin: 0 0 18px; color: #b8c1d1; font-size: 13px; }
+    .remember input { width: 16px; height: 16px; }
+    button { width: 100%; height: 44px; border: 0; border-radius: 7px; background: #3879f6; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #4b87fb; }
+    button:disabled { cursor: wait; opacity: .62; }
+    #status { min-height: 42px; margin: 15px 0 0; color: #aeb8ca; font-size: 13px; line-height: 1.6; }
+    #status.error { color: #ff9c9c; }
+    .security { margin: 4px 0 0; color: #7f899b; font-size: 12px; line-height: 1.55; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../build/icon.png" alt="企福AI智脑" />
+      <div><h1>企福AI智脑</h1><p class="edition">员工工作客户端 · 0.1.2-alpha.5</p></div>
+    </header>
+    <div class="server">认证：正式 OA 员工账号 · 加密网关</div>
+    <form id="login">
+      <label for="account">员工账号</label>
+      <input id="account" type="text" autocomplete="username" required autofocus />
+      <label for="password">登录密码</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <label class="remember"><input id="remember" type="checkbox" checked />在本机记住员工账号</label>
+      <button id="connect" type="submit">登录企福AI智脑</button>
+    </form>
+    <p id="status" aria-live="polite"></p>
+    <p class="security">账号和密码由正式 OA 验证；密码仅用于本次登录，不写入本机或安装包。</p>
+  </main>
+  <script>
+    const form = document.querySelector('#login');
+    const account = document.querySelector('#account');
+    const password = document.querySelector('#password');
+    const remember = document.querySelector('#remember');
+    const button = document.querySelector('#connect');
+    const status = document.querySelector('#status');
+
+    function showStatus(value) {
+      status.textContent = value.message || '';
+      status.classList.toggle('error', value.kind === 'error');
+      button.disabled = value.kind === 'working';
+    }
+
+    window.qifuDesktop.onStatus(showStatus);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showStatus({ kind: 'working', message: '正在验证正式 OA 员工身份…' });
+      const result = await window.qifuDesktop.login(account.value, password.value, remember.checked);
+      if (!result.ok) {
+        showStatus({ kind: 'error', message: result.message });
+        password.focus();
+        password.select();
+      }
+    });
+
+    window.qifuDesktop.initialState().then((state) => {
+      const queryError = new URLSearchParams(location.search).get('error');
+      if (queryError) showStatus({ kind: 'error', message: queryError });
+      if (state.savedAccount) {
+        account.value = state.savedAccount;
+        password.focus();
+      }
+    });
+  </script>
+</body>
+</html>

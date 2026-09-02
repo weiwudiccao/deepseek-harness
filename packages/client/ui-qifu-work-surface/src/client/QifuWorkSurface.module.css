@@ -1,0 +1,133 @@
+.root {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
+  flex: 1;
+  min-height: 0;
+  padding-right: 8px;
+  overflow: auto;
+}
+
+.section {
+  margin: 0 0 4px;
+}
+
+.sectionHeader,
+.row,
+.switchRow {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.switchRow:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.syncActions {
+  padding-top: 2px;
+}
+
+.syncStatus {
+  padding: 4px 8px 6px 28px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.sectionHeader:hover,
+.row:hover,
+.switchRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.headerIcon {
+  display: inline-flex;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sectionTitle {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.sectionBody {
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px 5px 28px;
+  border-radius: 8px;
+}
+
+.featureIcon,
+.cloudItemIcon {
+  display: inline-flex;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-primary-inverted);
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+.cloudItemIcon {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-sidebar-nav-item-active-accent);
+}
+
+.rowCopy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.rowTitle,
+.rowMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.empty {
+  padding: 7px 8px 7px 28px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.switchRow {
+  min-height: 32px;
+  padding: 5px 8px 5px 28px;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}

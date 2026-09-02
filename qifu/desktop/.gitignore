@@ -1,0 +1,5 @@
+build/icon.png
+dist/
+node_modules/
+resources/dsh-runtime/*
+!resources/dsh-runtime/.gitkeep

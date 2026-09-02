@@ -330,6 +330,31 @@ describe('healProfilesModuleFallback', () => {
     expect(before).toContain('dep-of-a')
   })
 
+  it('follows a linked installation package into its physical dependency tree', async () => {
+    const root = tmp()
+    const appDir = join(root, 'app')
+    const storeModules = join(root, 'store', 'bundle-a', 'node_modules')
+    const bundleDir = join(storeModules, 'bundle-a')
+    const dependencyDir = join(storeModules, 'dep-of-a')
+    mkdirSync(join(appDir, 'node_modules'), { recursive: true })
+    mkdirSync(bundleDir, { recursive: true })
+    mkdirSync(dependencyDir, { recursive: true })
+    writeFileSync(join(appDir, 'package.json'), JSON.stringify({
+      name: 'dsh-app', version: '0.0.0', dependencies: { 'bundle-a': '0.0.0' },
+    }))
+    writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({
+      name: 'bundle-a', version: '0.0.0', dependencies: { 'dep-of-a': '0.0.0' },
+    }))
+    writeFileSync(join(dependencyDir, 'package.json'), JSON.stringify({ name: 'dep-of-a', version: '0.0.0' }))
+    symlinkSync(bundleDir, join(appDir, 'node_modules', 'bundle-a'), 'junction')
+
+    const home = tmp()
+    await healProfilesModuleFallback({ installAnchor: join(appDir, 'package.json'), home })
+
+    const fallback = join(home, 'profiles', 'node_modules')
+    expect(readlinkSync(join(fallback, 'dep-of-a'))).toBe(realpathSync(dependencyDir))
+  })
+
   it('throws when a fallback entry is a foreign file or directory', async () => {
     const anchor = stageInstallation({})
     for (const kind of ['file', 'directory']) {

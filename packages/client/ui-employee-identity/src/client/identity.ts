@@ -1,4 +1,4 @@
-/** Employee metadata returned by the same-origin authentication gateway. */
+/** Employee metadata returned by the desktop authentication gateway. */
 export interface EmployeeIdentity {
   readonly id: string
   readonly name: string
@@ -24,22 +24,18 @@ export function parseEmployeeIdentity(value: unknown): EmployeeIdentity | undefi
 }
 
 /**
- * Read the current employee from the authenticated same-origin gateway.
+ * Read the current employee from the authenticated desktop gateway.
  * @param signal - Cancellation signal tied to the rendering component.
- * @param fetchImpl - Browser fetch implementation.
  * @returns validated employee metadata, or undefined when unavailable.
  */
-export async function readEmployeeIdentity(
-  signal: AbortSignal,
-  fetchImpl: typeof fetch = fetch,
-): Promise<EmployeeIdentity | undefined> {
-  const response = await fetchImpl('/auth/session', {
-    method: 'GET',
-    headers: { accept: 'application/json' },
-    credentials: 'same-origin',
-    cache: 'no-store',
-    signal,
-  })
-  if (!response.ok) return undefined
-  return parseEmployeeIdentity(await response.json())
+export async function readEmployeeIdentity(signal: AbortSignal): Promise<EmployeeIdentity | undefined> {
+  const bridge = (window as unknown as {
+    qifuDesktop?: {
+      gatewayRequest(path: string): Promise<{ readonly status: number; readonly body: unknown }>
+    }
+  }).qifuDesktop
+  if (bridge === undefined) return undefined
+  const response = await bridge.gatewayRequest('/auth/session')
+  if (signal.aborted || response.status < 200 || response.status >= 300) return undefined
+  return parseEmployeeIdentity(response.body)
 }

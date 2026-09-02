@@ -168,11 +168,12 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     }
     // The blank frame renders the hero, not the resident composer: the
     // headline plus the guidance placeholder are the empty state's anchors.
-    await expect.poll(() => page.getByText('Qifu AI Brain', { exact: false }).count(), { timeout: 15_000 }).toBe(1)
+    const headline = page.locator('[data-hero-headline]')
+    await expect.poll(() => headline.count(), { timeout: 15_000 }).toBe(1)
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     if (MODE !== 'record') {
-      await page.getByText('Qifu AI Brain', { exact: false }).hover()
+      await headline.hover()
       await expect.poll(() => page.getByRole('tooltip').count()).toBe(0)
       // Golden of the hero's stable waiting state (captured before any send;
       // the conversation-region goldens belong to the other scenarios).

@@ -1,0 +1,14 @@
+{
+  "name": "qifuaigent-employee-gateway",
+  "version": "0.1.2-alpha.5",
+  "private": true,
+  "type": "module",
+  "description": "Employee-authenticated HTTPS gateway for the QifuAI Brain service.",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

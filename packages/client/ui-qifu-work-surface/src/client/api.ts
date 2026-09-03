@@ -11,10 +11,13 @@ export interface QifuFeature {
   readonly digital_employee: string
 }
 
+/** Resource kinds shown in the employee's personal Cloud Work catalog. */
+export type QifuCloudItemKind = 'Conversation' | 'Session' | 'Harness Session' | 'Presentation' | 'File'
+
 /** Safe list projection for one resource in the current employee's cloud workspace. */
 export interface QifuCloudItem {
   readonly id: string
-  readonly kind: string
+  readonly kind: QifuCloudItemKind
   readonly title: string
   readonly summary: string
   readonly status: string
@@ -80,6 +83,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isCloudItemKind(value: unknown): value is QifuCloudItemKind {
+  return value === 'Conversation'
+    || value === 'Session'
+    || value === 'Harness Session'
+    || value === 'Presentation'
+    || value === 'File'
+}
+
 async function gatewayJson(path: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<unknown> {
   if (window.qifuDesktop !== undefined) {
     const response = await window.qifuDesktop.gatewayRequest(path, init)
@@ -135,7 +146,7 @@ export async function readCloudItems(): Promise<readonly QifuCloudItem[]> {
   const value = await gatewayJson('/qifu/v1/cloud/items?limit=50')
   if (!isRecord(value) || !Array.isArray(value.items)) throw new Error('QIFU_CLOUD_ITEMS_INVALID')
   return value.items.filter(isRecord).flatMap((row): QifuCloudItem[] => {
-    if (typeof row.id !== 'string' || typeof row.kind !== 'string' || typeof row.title !== 'string') return []
+    if (typeof row.id !== 'string' || !isCloudItemKind(row.kind) || typeof row.title !== 'string') return []
     return [{
       id: row.id,
       kind: row.kind,

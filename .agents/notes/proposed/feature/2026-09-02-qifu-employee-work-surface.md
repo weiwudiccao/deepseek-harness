@@ -51,7 +51,7 @@ The sidebar shows three first-level collapsible groups in a fixed order below �
 | Group | Default state | Children | Empty state |
 |---|---|---|---|
 | Features | Expanded | Apps available to the current employee | “No features are available to this account” |
-| Cloud Work | Expanded | Cloud workspaces, recent sessions, designs, files, and knowledge entry points | “No cloud content” |
+| Cloud Work | Expanded | Cloud workspaces, recent personal sessions, designs, files, and explicit local publications | “No cloud content” |
 | Local Content | Expanded | Local workspaces, recent local sessions, and downloaded copies | “Choose a local folder to start work” |
 
 The three collapse states are stored in local UI settings under the employee account and device. Collapse state is not uploaded to OA and does not affect permissions or content existence.
@@ -120,7 +120,6 @@ Cloud Work is a shared resource directory, not a shared body-content table. Each
 | Harness session | Versioned DSH event log | Title, runtime, session format, recovery status, and normalized transcript projection |
 | Presentation and design | Presentation Project, Version, Slide, and Source | Project status, current version, preview, and delivery files |
 | File and attachment | Private object storage, Frappe File, and Attachment Index | File name, type, size, digest, scan state, and source relation |
-| Knowledge content | Knowledge Source, Chunk, Entity, and Relation | Source state, index version, and authorization scope |
 
 The system lazily creates one private default workspace when an employee first opens Cloud Work. The first version permits employees to own their private workspaces only; the data model reserves `visibility` and an ACL table for later department or project sharing without changing the owner contract of private records.
 
@@ -269,12 +268,12 @@ The upgrade checks compare upstream in an independent worktree, back up current 
 | Phase | Estimated effort | Work | Exit criteria |
 |---|---:|---|---|
 | 0. Employee content authorization | 4–6 engineer-days | Add record query and detail permissions; close ordinary employee report/export bypasses; protect File, search, and real-time subscriptions; create two-employee fixtures. | Employee A cannot observe employee B's existence or content through any generic or business entry point; revocation is immediate. |
-| 1. Features and cloud directory | 7–10 engineer-days | Add Client Feature, bootstrap, Cloud Workspace, Work Item, Session Binding, and existing-content adapters; deliver the Apps-style feature list. | Feature presentation matches server actions; existing conversations, presentations, attachments, and knowledge sources appear through indexes without copied body content. |
+| 1. Features and cloud directory | 7–10 engineer-days | Add Client Feature, bootstrap, Cloud Workspace, Work Item, Session Binding, and existing-content adapters; deliver the Apps-style feature list. | Feature presentation matches server actions; personal conversations, presentations, and attachments appear through indexes without copied body content; enterprise knowledge sources remain outside the sidebar. |
 | 2. Local runtime | 10–15 engineer-days | Start local DSH from desktop, create employee and device data roots, native directory selection, encrypted keys, runtime-location labels, and Strict Local Mode. | Local sessions and files work offline; two employees cannot read each other's local data; cloud has no new content records. |
 | 3. Explicit publication | 8–12 engineer-days | Add transfer state, preview, chunks, scanning, idempotency, versions, lineage, local downloads, and conflict handling. | Only selected objects upload; retry does not duplicate; conflict does not overwrite; failure leaves no visible partial record. |
 | 4. Profile and memory | 6–9 engineer-days | Split four choices, candidate confirmation, Context Snapshot, derived-data invalidation, used-source UI, and historical retention policy. | The next request omits disabled context; forgetting invalidates retrieval and indexes; model input is audit-reconstructable. |
 
-Phase 0 completes first, and later phases cannot substitute UI hiding for authorization repair. Phase 1 uses lazy creation and batch backfill for existing data: a script creates a default Workspace per owner and idempotent Work Items for existing Conversation, Presentation, Attachment, and Knowledge records; bodies do not move, and existing URLs and business state machines remain valid.
+Phase 0 completes first, and later phases cannot substitute UI hiding for authorization repair. Phase 1 uses lazy creation and batch backfill for existing data: a script creates a default Workspace per owner and idempotent Work Items for existing Conversation, Presentation, and Attachment records; bodies do not move, and existing URLs and business state machines remain valid. Knowledge sources stay available to authorized model retrieval without becoming Cloud Work or Feature rows.
 
 Existing account memory receives `consent_state = Review Required` during migration. The system keeps the records but pauses automatic injection and extraction until the employee opens personalization settings and chooses each option; absence of a choice is not inferred consent. Existing Context Snapshot and audit records remain read-only.
 
@@ -306,7 +305,7 @@ TLS certificate pinning configures the current and next public-key fingerprints 
 ### Cloud work
 
 - An employee can list and open only their private Workspace, Work Items, original business records, files, and search results.
-- Existing Conversation, Presentation, Attachment, and Knowledge content appears through adapters, with body digests equal to original records and no competing body copies.
+- Existing personal Conversation, Presentation, and Attachment content appears through adapters, with body digests equal to original records and no competing body copies; enterprise Knowledge sources appear in neither Cloud Work nor Features.
 - A Harness session provides both a resumable event log and a normalized transcript, and upgrade tests read every supported format.
 - Deletion or reduced authorization invalidates lists, full-text indexes, vector indexes, signed URLs, and real-time subscriptions within the declared period.
 

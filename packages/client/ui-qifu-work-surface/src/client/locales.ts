@@ -9,6 +9,9 @@ export const zh = {
   'local': '本机内容',
   'empty.features': '当前账号暂无可用功能',
   'empty.cloud': '暂无云端内容',
+  'cloud.group.sessions': '会话',
+  'cloud.group.designs': '设计',
+  'cloud.group.files': '文件',
   'loading': '正在加载…',
   'unavailable': '暂时无法读取',
   'switch.cloud': '切换到云端工作',
@@ -42,10 +45,10 @@ export const zh = {
   'personalization.memory.confirm': '确认记忆',
   'personalization.memory.forget': '删除记忆',
   'kind.Conversation': '对话',
+  'kind.Session': '会话',
   'kind.Harness Session': '会话',
   'kind.Presentation': '设计',
   'kind.File': '文件',
-  'kind.Knowledge': '知识',
 } satisfies Record<string, string>
 
 /** Qifu work-surface dictionary key union. */
@@ -58,6 +61,9 @@ export const en = {
   'local': 'On this device',
   'empty.features': 'No features are available for this account',
   'empty.cloud': 'No cloud content yet',
+  'cloud.group.sessions': 'Sessions',
+  'cloud.group.designs': 'Designs',
+  'cloud.group.files': 'Files',
   'loading': 'Loading…',
   'unavailable': 'Temporarily unavailable',
   'switch.cloud': 'Switch to cloud work',
@@ -91,10 +97,10 @@ export const en = {
   'personalization.memory.confirm': 'Confirm memory',
   'personalization.memory.forget': 'Delete memory',
   'kind.Conversation': 'Conversation',
+  'kind.Session': 'Session',
   'kind.Harness Session': 'Session',
   'kind.Presentation': 'Design',
   'kind.File': 'File',
-  'kind.Knowledge': 'Knowledge',
 } satisfies Record<QifuWorkSurfaceKey, string>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

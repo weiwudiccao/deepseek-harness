@@ -51,10 +51,24 @@ describe('Qifu employee sidebar composition', () => {
         }],
       },
       '/qifu/v1/cloud/items?limit=50': {
-        items: [{
-          id: 'cwi-1', kind: 'Conversation', title: '云端方案讨论', summary: '', status: 'Ready',
-          version: 2, downloadable: true, modified: '',
-        }],
+        items: [
+          {
+            id: 'cwi-1', kind: 'Conversation', title: '云端方案讨论', summary: '', status: 'Ready',
+            version: 2, downloadable: true, modified: '',
+          },
+          {
+            id: 'cwi-2', kind: 'Presentation', title: '本人方案设计', summary: '', status: 'Ready',
+            version: 1, downloadable: false, modified: '',
+          },
+          {
+            id: 'cwi-3', kind: 'File', title: '主动同步文件', summary: '', status: 'Ready',
+            version: 1, downloadable: false, modified: '',
+          },
+          {
+            id: 'cwi-4', kind: 'Knowledge', title: '企业内部知识库', summary: '', status: 'Ready',
+            version: 1, downloadable: false, modified: '',
+          },
+        ],
       },
     })
     render(<QifuWorkSurface {...({ wide: true, workspaces: <div>本机会话甲</div>, sessionList, t } as QifuWorkSurfaceProps)} />)
@@ -64,6 +78,12 @@ describe('Qifu employee sidebar composition', () => {
     expect(screen.getByText('云端工作')).toBeTruthy()
     expect(screen.getByText('本机内容')).toBeTruthy()
     expect(screen.getByText('云端方案讨论')).toBeTruthy()
+    expect(screen.getByText('本人方案设计')).toBeTruthy()
+    expect(screen.getByText('主动同步文件')).toBeTruthy()
+    expect(screen.queryByText('企业内部知识库')).toBeNull()
+    expect(screen.getByText('会话')).toBeTruthy()
+    expect(screen.getByText('设计')).toBeTruthy()
+    expect(screen.getByText('文件')).toBeTruthy()
     expect(screen.getByText('本机会话甲')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /智剪工坊/u }))
     expect(bridge.openFeature).toHaveBeenCalledWith(expect.objectContaining({ feature_code: 'digital-employee-b1' }))

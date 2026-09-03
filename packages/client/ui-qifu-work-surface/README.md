@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package gives an authenticated Qifu desktop employee one sidebar with three explicit areas: permission-derived Features, company Cloud Work, and content on this device. It preserves the standard Workspace and Session browser inside the active runtime area, so local content stays in the employee-specific device runtime until the employee publishes one file or Session snapshot. The Settings contribution exposes four independent profile and memory choices that default off in OA. Choose it only with the Qifu desktop preload bridge and authenticated gateway; ordinary Web compositions register no Qifu surface.
+This package gives an authenticated Qifu desktop employee one sidebar with three explicit areas: permission-derived Features, employee-private Cloud Work, and content on this device. Cloud Work groups personal conversations and Sessions, designs, files, and explicit local publications; enterprise knowledge sources do not appear in this sidebar or move into Features. The package preserves the standard Workspace and Session browser inside the active runtime area, so local content stays in the employee-specific device runtime until the employee publishes one file or Session snapshot. The Settings contribution exposes four independent profile and memory choices that default off in OA. Choose it only with the Qifu desktop preload bridge and authenticated gateway; ordinary Web compositions register no Qifu surface.
 
 ## Table of Contents
 
@@ -37,7 +37,7 @@ Choose this package for the certificate-pinned Qifu desktop deployment that has 
 - name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'
 ```
 
-The plugin accepts no configuration fields. The gateway owns features, cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
+The plugin accepts no configuration fields. The gateway owns features, employee-private cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
 
 ### Failure behavior
 
@@ -51,7 +51,7 @@ The package never substitutes a static feature catalog when bootstrap fails. It 
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The browser plugin registers typed Chinese and English dictionaries, replaces the optional `sidebar.workSurface` composition seat, and adds one `settings.section` occupant. The sidebar owner supplies the already-rendered standard Workspace browser; `QifuWorkSurface` places it under Cloud Work or Local Content according to the desktop runtime mode. Gateway responses are parsed into controlled feature and cloud-item fields, while every privileged action crosses the allowlisted preload bridge. `PersonalizationSection` reads and writes the complete four-field consent record and restores the previous value when a write fails.
+The browser plugin registers typed Chinese and English dictionaries, replaces the optional `sidebar.workSurface` composition seat, and adds one `settings.section` occupant. The sidebar owner supplies the already-rendered standard Workspace browser; `QifuWorkSurface` places it under Cloud Work or Local Content according to the desktop runtime mode. Gateway responses are parsed into controlled feature fields and an allowlist of personal cloud kinds, then grouped as Sessions, Designs, and Files. Enterprise knowledge rows are discarded instead of being rendered or reclassified as Features. Every privileged action crosses the allowlisted preload bridge. `PersonalizationSection` reads and writes the complete four-field consent record and restores the previous value when a write fails.
 
 | File | Role |
 |---|---|
@@ -94,7 +94,7 @@ None; the package neither assembles nor sends a provider request.
 These limits distinguish the shipped browser surface from responsibilities owned by the gateway, OA, desktop runtime, and later proposal phases.
 
 - **Desktop only** — the package deliberately stays inactive when the `qifuDesktop` preload bridge is absent.
-- **The cloud list is a recent projection** — the first surface reads at most 50 Work Items and has no browser pagination or search control.
+- **The cloud list is a recent personal projection** — the first surface reads at most 50 personal Conversation, Session, Presentation, or File Work Items and has no browser pagination or search control.
 - **Publication is one-way in this slice** — the bridge publishes one local file or one local Session snapshot; cloud-to-local download and background synchronization are not exposed.
 - **Consent presentation does not inject context** — OA and runtime providers must enforce each choice when they assemble model input; this browser package only reads and writes the authoritative consent record.
 

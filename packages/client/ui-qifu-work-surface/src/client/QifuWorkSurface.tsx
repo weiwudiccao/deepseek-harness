@@ -8,7 +8,7 @@ import {
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import {
-  readBootstrap, readCloudItems, readRuntimeMode, type QifuCloudItem, type QifuFeature,
+  readBootstrap, readCloudItems, readRuntimeMode, type QifuCloudItem, type QifuCloudItemKind, type QifuFeature,
 } from './api.ts'
 import type { QifuWorkSurfaceKey } from './locales.ts'
 import css from './QifuWorkSurface.module.css'
@@ -17,6 +17,15 @@ type SurfaceState =
   | { status: 'loading'; mode: 'cloud' }
   | { status: 'ready'; mode: 'local' | 'cloud'; features: readonly QifuFeature[]; cloud: readonly QifuCloudItem[] }
   | { status: 'unavailable'; mode: 'local' | 'cloud' }
+
+const CLOUD_GROUPS: readonly {
+  readonly title: QifuWorkSurfaceKey
+  readonly kinds: ReadonlySet<QifuCloudItemKind>
+}[] = [
+  { title: 'cloud.group.sessions', kinds: new Set(['Conversation', 'Session', 'Harness Session']) },
+  { title: 'cloud.group.designs', kinds: new Set(['Presentation']) },
+  { title: 'cloud.group.files', kinds: new Set(['File']) },
+]
 
 /** Full props supplied by the deployment composition slot. */
 export type QifuWorkSurfaceProps = PropsRuntime<'sidebar.workSurface'> & PropsLocale<'qifuWorkSurface'>
@@ -108,33 +117,42 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
       </button>
     ))
     : <div className={css.empty}>{state.status === 'loading' ? t('loading') : t('empty.features')}</div>
-  const cloudRows = state.status === 'ready' && state.cloud.length > 0
-    ? state.cloud.map(item => (
-      <div key={item.id} className={css.cloudRow}>
-        <button
-          type="button"
-          className={css.row}
-          onClick={() => { if (mode === 'local') switchRuntime('cloud') }}
-        >
-          <span className={css.cloudItemIcon} aria-hidden><IconDatabaseOutline16 size={15} /></span>
-          <span className={css.rowCopy}>
-            <span className={css.rowTitle}>{item.title}</span>
-            <span className={css.rowMeta}>
-              {`${t(`kind.${item.kind}` as QifuWorkSurfaceKey)} · ${t('version')} ${item.version}`}
-            </span>
-          </span>
-        </button>
-        {item.downloadable && desktop !== undefined && (
-          <button
-            type="button"
-            className={css.downloadButton}
-            aria-label={`${t('download')} ${item.title}`}
-            disabled={syncState.busy}
-            onClick={() => { downloadCloudItem(item) }}
-          >
-            <IconDownloadOutline16 size={15} />
-          </button>
-        )}
+  const cloudGroups = state.status === 'ready'
+    ? CLOUD_GROUPS.map(group => ({ ...group, items: state.cloud.filter(item => group.kinds.has(item.kind)) }))
+      .filter(group => group.items.length > 0)
+    : []
+  const cloudRows = cloudGroups.length > 0
+    ? cloudGroups.map(group => (
+      <div key={group.title} className={css.cloudGroup}>
+        <div className={css.cloudGroupTitle}>{t(group.title)}</div>
+        {group.items.map(item => (
+          <div key={item.id} className={css.cloudRow}>
+            <button
+              type="button"
+              className={css.row}
+              onClick={() => { if (mode === 'local') switchRuntime('cloud') }}
+            >
+              <span className={css.cloudItemIcon} aria-hidden><IconDatabaseOutline16 size={15} /></span>
+              <span className={css.rowCopy}>
+                <span className={css.rowTitle}>{item.title}</span>
+                <span className={css.rowMeta}>
+                  {`${t(`kind.${item.kind}`)} · ${t('version')} ${item.version}`}
+                </span>
+              </span>
+            </button>
+            {item.downloadable && desktop !== undefined && (
+              <button
+                type="button"
+                className={css.downloadButton}
+                aria-label={`${t('download')} ${item.title}`}
+                disabled={syncState.busy}
+                onClick={() => { downloadCloudItem(item) }}
+              >
+                <IconDownloadOutline16 size={15} />
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     ))
     : <div className={css.empty}>{state.status === 'loading' ? t('loading') : t('empty.cloud')}</div>

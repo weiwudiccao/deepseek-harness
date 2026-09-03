@@ -3,5 +3,5 @@
 1. 仅部署 package.json、src/ 和 deploy/qifuaigent-gateway.service；按 deploy/qifuaigent-gateway.env.example 配置，先在 staging 运行 npm test。
 2. /etc/qifuaigent-gateway.env、TLS 私钥、模型密钥与员工会话令牌只在服务器运行期使用，权限设为 root 可读，不进入 Git；QIFU_GATEWAY_PUBLIC_ORIGIN 必须是员工运行时可访问的正式 HTTPS 网关源。
 3. 更新前备份 /opt/qifuaigent-gateway 源码；生产数据库备份由 OA 发布流程单独负责。
-4. 更新后执行 systemctl daemon-reload、restart，并核服务 MainPID、启动时间、/healthz、未认证 401、证书指纹，以及画像/记忆上下文接口仍按员工会话隔离。
+4. 更新后执行 systemctl daemon-reload、restart，并核服务 MainPID、启动时间、/healthz、未认证 401、证书指纹、员工运行时中的“云端工作区”自动注册，以及画像/记忆上下文接口仍按员工会话隔离。
 5. 客户端固定证书更新必须与网关证书切换作为同一受控发布，保留旧版回滚路径。

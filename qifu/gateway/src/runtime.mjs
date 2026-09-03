@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { request as httpRequest } from 'node:http'
@@ -7,6 +7,8 @@ import { isAbsolute, join } from 'node:path'
 const READY_PATTERN = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/)\?token=([A-Za-z0-9_-]+)/u
 const MAX_STARTUP_OUTPUT_BYTES = 64 * 1024
 const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3'
+const CLOUD_WORKSPACE_DIRECTORY = 'cloud-workspace'
+const CLOUD_WORKSPACE_TITLE = '云端工作区'
 const QIFU_CONTEXT_PATCH = `- insert:
     - id: qifu-account-context
       name: '@deepseek-ai/dsh-qifu-account-context'
@@ -120,6 +122,59 @@ export function exchangeDshToken(origin, token, requestImpl = httpRequest) {
   })
 }
 
+async function dshRpc(origin, cookie, endpoint, args, fetchImpl) {
+  const rpcId = `qifu-${randomUUID()}`
+  const response = await fetchImpl(new URL(`/api/${endpoint}`, origin), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie,
+    },
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method: endpoint,
+      payload: { args },
+    }),
+    redirect: 'error',
+  })
+  if (!response.ok) throw new Error(`DSH ${endpoint} returned HTTP ${String(response.status)}`)
+  const body = await response.json()
+  if (body?.type !== 'server-response' || body.rpcId !== rpcId || body.result?.ok !== true) {
+    const failure = body?.result?.error
+    const detail = typeof failure?.code === 'string' && typeof failure?.message === 'string'
+      ? `${failure.code}: ${failure.message}`
+      : 'invalid response envelope'
+    throw new Error(`DSH ${endpoint} failed: ${detail}`)
+  }
+  return body.result.value
+}
+
+/** Register and name the employee-owned server directory used by cloud conversations. */
+export async function ensureEmployeeCloudWorkspace(origin, cookie, path, fetchImpl = fetch) {
+  if (!(origin instanceof URL)) throw new Error('employee DSH origin must be a URL')
+  validateRuntimeOrigin(origin.href)
+  if (typeof cookie !== 'string' || !cookie.startsWith('dsh-auth-')) {
+    throw new Error('employee DSH session cookie is required')
+  }
+  if (typeof path !== 'string' || !isAbsolute(path)) throw new Error('cloud Workspace path must be absolute')
+  const created = await dshRpc(origin, cookie, 'workspace/create', { request: { path } }, fetchImpl)
+  const workspace = created?.workspace
+  if (typeof workspace?.workspaceId !== 'string' || typeof workspace.title !== 'string') {
+    throw new Error('DSH workspace/create omitted its Workspace')
+  }
+  if (workspace.title === CLOUD_WORKSPACE_TITLE) return workspace
+  const renamed = await dshRpc(origin, cookie, 'workspace/rename', {
+    request: { workspaceId: workspace.workspaceId, title: CLOUD_WORKSPACE_TITLE },
+  }, fetchImpl)
+  if (typeof renamed?.workspace?.workspaceId !== 'string'
+    || renamed.workspace.workspaceId !== workspace.workspaceId
+    || renamed.workspace.title !== CLOUD_WORKSPACE_TITLE) {
+    throw new Error('DSH workspace/rename omitted the managed Cloud Workspace')
+  }
+  return renamed.workspace
+}
+
 /** Lazily own one persistent DSH_HOME and one loopback DSH process per OA employee. */
 export function createDshRuntimeProvider(options) {
   const cliPath = options.cliPath
@@ -132,6 +187,7 @@ export function createDshRuntimeProvider(options) {
   const mkdirImpl = options.mkdirImpl ?? mkdir
   const prepareHomeImpl = options.prepareHomeImpl ?? ensureEmployeeWebProfile
   const exchangeImpl = options.exchangeImpl ?? exchangeDshToken
+  const ensureWorkspaceImpl = options.ensureWorkspaceImpl ?? ensureEmployeeCloudWorkspace
   const startupTimeoutMs = options.startupTimeoutMs ?? 30_000
   const entries = new Map()
   let disposed = false
@@ -158,6 +214,8 @@ export function createDshRuntimeProvider(options) {
     entry.ready = (async () => {
       const home = join(dataRoot, key)
       await mkdirImpl(home, { recursive: true, mode: 0o700 })
+      const cloudWorkspace = join(home, CLOUD_WORKSPACE_DIRECTORY)
+      await mkdirImpl(cloudWorkspace, { recursive: true, mode: 0o700 })
       const dshHome = join(home, '.dsh')
       await prepareHomeImpl(dshHome)
       if (disposed || entries.get(key) !== entry) throw new Error('employee DSH runtime start was superseded')
@@ -182,6 +240,7 @@ export function createDshRuntimeProvider(options) {
       entry.child = child
       return new Promise((resolve, reject) => {
       let settled = false
+      let initializing = false
       let output = ''
       const timeout = setTimeout(() => fail(new Error('employee DSH runtime startup timed out')), startupTimeoutMs)
       timeout.unref?.()
@@ -203,11 +262,16 @@ export function createDshRuntimeProvider(options) {
         if (settled) return
         output = `${output}${String(chunk)}`.slice(-MAX_STARTUP_OUTPUT_BYTES)
         const match = READY_PATTERN.exec(output)
-        if (match === null) return
+        if (match === null || initializing) return
+        initializing = true
         const origin = validateRuntimeOrigin(match[1])
         const token = match[2]
-        void exchangeImpl(origin, token).then((cookie) => {
+        void exchangeImpl(origin, token).then(async (cookie) => {
+          await ensureWorkspaceImpl(origin, cookie, cloudWorkspace)
           if (settled) return
+          if (disposed || entries.get(key) !== entry) {
+            throw new Error('employee DSH runtime start was superseded')
+          }
           settled = true
           output = ''
           cleanupStartupListeners()
@@ -219,7 +283,7 @@ export function createDshRuntimeProvider(options) {
             cookie,
             invalidate: () => stop(key, entry),
           })
-        }, fail)
+        }).catch(fail)
       }
       child.stdout.on('data', onData)
       child.stderr.on('data', onData)

@@ -41,7 +41,7 @@ The plugin accepts no configuration fields. The gateway owns features, cloud met
 
 ### Failure behavior
 
-The package never substitutes a static feature catalog when bootstrap fails. It shows an unavailable or empty state, leaves local Workspace and Session data under the active device runtime, and reports a failed publication without treating it as committed.
+The package never substitutes a static feature catalog when bootstrap fails. It shows an unavailable or empty state, leaves local Workspace and Session data under the active device runtime, and reports failed runtime switches and publication without treating either operation as successful.
 
 -----
 
@@ -73,6 +73,7 @@ These pages describe the generic seats and the Qifu deployment decisions that th
 - [ui-sidebar](../ui-sidebar/README.md) — owns `sidebar.workSurface` and the standard Workspace browser handoff.
 - [ui-settings](../ui-settings/README.md) — owns the settings section lifecycle.
 - [Employee runtime isolation](../../../.agents/notes/implemented/feature/2026-09-01-employee-runtime-isolation-and-identity.md) — separates employee cloud Sessions and identity presentation.
+- [Qifu desktop default Local Workspace](../../../.agents/notes/implemented/feature/2026-09-03-qifu-default-local-workspace.md) — owns the employee-isolated initial directory and runtime readiness behavior.
 - [Qifu employee work-surface proposal](../../../.agents/notes/proposed/feature/2026-09-02-qifu-employee-work-surface.md) — owns the wider data, transfer, personalization, and upgrade decisions.
 
 -----

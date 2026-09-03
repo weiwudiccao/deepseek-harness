@@ -41,7 +41,7 @@ kind: "package-reference"
 
 ### 失败行为
 
-bootstrap 失败时，该包绝不替换为静态完整功能目录。它显示不可用或空状态，把本机工作区和会话数据留在当前活动设备运行时中，并在发布失败时报告错误而不把它视为已提交。
+bootstrap 失败时，该包绝不替换为静态完整功能目录。它显示不可用或空状态，把本机工作区和会话数据留在当前活动设备运行时中，并报告运行时切换与发布失败，不会把任一操作视为成功。
 
 -----
 
@@ -73,6 +73,7 @@ bootstrap 失败时，该包绝不替换为静态完整功能目录。它显示�
 - [ui-sidebar](../ui-sidebar/README.zh.md)——拥有 `sidebar.workSurface` 和标准工作区浏览器 handoff。
 - [ui-settings](../ui-settings/README.zh.md)——拥有设置 section 生命周期。
 - [员工运行时隔离](../../../.agents/notes/implemented/feature/2026-09-01-employee-runtime-isolation-and-identity.zh.md)——分离员工云端会话和身份展示。
+- [企福桌面端默认本机工作区](../../../.agents/notes/implemented/feature/2026-09-03-qifu-default-local-workspace.zh.md)——负责员工隔离的初始目录和运行时就绪行为。
 - [企福员工工作界面方案](../../../.agents/notes/proposed/feature/2026-09-02-qifu-employee-work-surface.zh.md)——拥有更完整的数据、传输、个性化和升级决策。
 
 -----

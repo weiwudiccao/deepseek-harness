@@ -138,6 +138,17 @@ describe('preset discovery', () => {
     expect(found.map(preset => preset.id)).toEqual(['real'])
   })
 
+  it('does not follow a symbolic link presented as a preset directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-presets-symlink-root-'))
+    const target = await mkdtemp(join(tmpdir(), 'dsh-presets-symlink-target-'))
+    await writeFile(join(target, COMPOSITION_FILE), '[]\n')
+    await symlink(target, join(root, 'linked'))
+
+    const found = await scanRoot({ path: root, trust: 'user' }, HARNESS)
+
+    expect(found).toEqual([])
+  })
+
   it('reports a root it cannot read rather than treating it as empty', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-presets-'))
     const notADirectory = join(root, 'file-as-root')

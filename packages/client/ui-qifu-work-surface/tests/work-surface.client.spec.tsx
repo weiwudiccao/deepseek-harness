@@ -25,7 +25,7 @@ function installDesktop(
   const bridge = {
     gatewayRequest: vi.fn(async (path: string) => ({ status: 200, body: responses[path] })),
     runtimeInfo: vi.fn(async () => ({ mode })),
-    switchRuntime: vi.fn(async () => ({ ok: true })),
+    switchRuntime: vi.fn(async (): Promise<{ ok: boolean; message?: string }> => ({ ok: true })),
     openFeature: vi.fn(async () => ({ ok: true })),
     syncFile: vi.fn(async () => ({ ok: true })),
     syncSession: vi.fn(async () => ({ ok: true })),
@@ -82,6 +82,21 @@ describe('Qifu employee sidebar composition', () => {
     expect(bridge.switchRuntime).not.toHaveBeenCalled()
     fireEvent.click(action)
     expect(bridge.switchRuntime).toHaveBeenCalledWith('local')
+  })
+
+  it('shows the desktop runtime failure instead of leaving the switch silent', async () => {
+    const bridge = installDesktop({
+      '/qifu/v1/bootstrap': { features: [] },
+      '/qifu/v1/cloud/items?limit=50': { items: [] },
+    }, 'cloud')
+    bridge.switchRuntime.mockResolvedValueOnce({ ok: false, message: '本机运行时组件缺失，请重新安装客户端。' })
+    render(<QifuWorkSurface {...({ wide: true, workspaces: <div>云端会话树</div>, sessionList, t } as QifuWorkSurfaceProps)} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '切换到本机内容' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toBe('本机运行时组件缺失，请重新安装客户端。')
+    })
   })
 })
 

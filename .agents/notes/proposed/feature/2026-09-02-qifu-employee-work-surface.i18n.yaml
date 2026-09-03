@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/feature/2026-09-02-qifu-employee-work-surface.md
-2026-09-02-qifu-employee-work-surface.md: a10252c214cc86846ac03e550a61b22226ab1f41
-2026-09-02-qifu-employee-work-surface.zh.md: 67bafb6628235af463b4cf7d148748245602dc47
+2026-09-02-qifu-employee-work-surface.md: 809bf22b02ecd64a7a6de04022e35a1eb4827e97
+2026-09-02-qifu-employee-work-surface.zh.md: ac296a6c858ec0f9eff2fa6a45160f67ad290b3e

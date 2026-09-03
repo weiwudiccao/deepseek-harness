@@ -16,7 +16,7 @@ Status: implemented
 
 Workspace 按规范路径幂等创建。再次登录的员工复用同一注册表条目和目录，已有会话继续归属该 Workspace。通用 Workspace 导航服务观察到已注册的 Workspace 后，创建或复用其中的空白 Session 并将其打开，不需要增加企福专用客户端导航分支。
 
-云端工作区初始化属于运行时就绪条件。注册或重命名失败会停止员工进程并使请求失败；网关不会退回 `/root/qifuaigent`、其他员工目录或未注册的当前工作目录。本机内容继续使用桌面端本机运行时及其明确的原生目录选择器。
+云端工作区初始化属于运行时就绪条件。注册或重命名失败会停止员工进程并使请求失败；网关不会退回 `/root/qifuaigent`、其他员工目录或未注册的当前工作目录。桌面端[默认本机工作区](2026-09-03-qifu-default-local-workspace.zh.md)负责对应的设备侧启动行为。
 
 ## Alternatives considered
 

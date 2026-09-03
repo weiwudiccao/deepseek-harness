@@ -16,7 +16,7 @@ The employee runtime provider creates a `cloud-workspace` directory inside the e
 
 Workspace creation is idempotent by canonical path. Returning employees reuse the same registry entry and directory, so their existing sessions remain attached. The generic Workspace navigation service observes the registered Workspace, creates or reuses its blank Session, and opens it without a product-specific client navigation fork.
 
-Cloud Workspace initialization is part of runtime readiness. A registration or rename failure stops the employee process and fails the request; the gateway does not fall back to `/root/qifuaigent`, another employee directory, or an unregistered current working directory. Local Content continues to use the desktop local runtime and its explicit native directory picker.
+Cloud Workspace initialization is part of runtime readiness. A registration or rename failure stops the employee process and fails the request; the gateway does not fall back to `/root/qifuaigent`, another employee directory, or an unregistered current working directory. The desktop [default Local Workspace](2026-09-03-qifu-default-local-workspace.md) owns the corresponding device-side startup behavior.
 
 ## Alternatives considered
 

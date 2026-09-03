@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-03-qifu-default-cloud-workspace.md
-2026-09-03-qifu-default-cloud-workspace.md: d10dd5a7e10fba3403901c6ff4c5e5cf23a37887
-2026-09-03-qifu-default-cloud-workspace.zh.md: 1cf0c7d8e4b60f1c614e3e131729d56675441705
+2026-09-03-qifu-default-cloud-workspace.md: 27027e06a78016b33853846736b47056b809799b
+2026-09-03-qifu-default-cloud-workspace.zh.md: 4bbc78f11c3d820a4df4518c38f37a2aa19b3c9e

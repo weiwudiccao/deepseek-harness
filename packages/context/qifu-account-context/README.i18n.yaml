@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/context/qifu-account-context/README.md
-README.md: ebc4ab778d2f165e162c13a56ed06392f4f3a416
-README.zh.md: 6fb99f778bd6954582d49966beeb474f9c388ec1
+README.md: 92bf82292eba0c047149722dc69dcb4c48800945
+README.zh.md: c06cf2eb53a1d1767f8000d2f367d26d0a169c2b

@@ -3,6 +3,13 @@ const { spawn } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  ensureEmployeeLocalWorkspace,
+  ensureLocalWebProfile,
+  exchangeDshToken,
+  localRuntimeCookie,
+  validateRuntimeOrigin,
+} = require('./local-runtime-support.cjs');
 
 const PRODUCTION_GATEWAY_URL = 'https://47.106.208.2:3443';
 const PRODUCTION_GATEWAY_CERT_SHA256 = 'SHA256/VO2JrTSIZg0T9sCJSOlB0jcMWjyp5yOIsVRTl4hIqlA=';
@@ -15,22 +22,10 @@ const GATEWAY_CERT_SHA256 = !app.isPackaged && process.env.QIFUAI_GATEWAY_CERT_S
   ? process.env.QIFUAI_GATEWAY_CERT_SHA256
   : PRODUCTION_GATEWAY_CERT_SHA256;
 const GATEWAY_SESSION_COOKIE = 'qifuai_gateway_session';
-const READY_PATTERN = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+)/u;
+const READY_PATTERN = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/)\?token=([A-Za-z0-9_-]+)/u;
 const MAX_STARTUP_OUTPUT = 64 * 1024;
 const MAX_SYNC_BYTES = 25 * 1024 * 1024;
-const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3';
-const QIFU_CONTEXT_PATCH = `- insert:
-    - id: qifu-account-context
-      name: '@deepseek-ai/dsh-qifu-account-context'
-      config:
-        endpointEnv: QIFUAI_CONTEXT_URL
-        tokenEnv: QIFUAI_CONTEXT_TOKEN
-        localContextEnv: QIFUAI_CONTEXT_LOCAL
-        timeoutMs: 5000
-        maxResponseBytes: 16384
-    - id: qifu-account-context-invariant
-      name: '@deepseek-ai/dsh-qifu-account-context/invariant'
-`;
+const LOCAL_WORKSPACE_DIRECTORY = 'local-workspace';
 const GATEWAY_ROUTES = new Map([
   ['GET /auth/session', true],
   ['GET /qifu/v1/bootstrap', true],
@@ -257,48 +252,6 @@ function runtimePaths() {
   };
 }
 
-function writeAtomic(file, content, mode = 0o600) {
-  const temporary = `${file}.tmp`;
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(temporary, content, { mode });
-  fs.renameSync(temporary, file);
-}
-
-function ensureLocalWebProfile(home) {
-  const profileDir = path.join(home, 'profiles', 'web');
-  const manifestPath = path.join(profileDir, 'package.json');
-  const manifest = {
-    name: 'dsh-profile-web',
-    private: true,
-    dependencies: {
-      '@deepseek-ai/dsh-qifu-account-context': QIFU_CONTEXT_PLUGIN_VERSION,
-    },
-    dsh: {
-      profile: {
-        bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
-        patchReload: 'startup',
-      },
-    },
-  };
-  writeAtomic(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const files = new Map([
-    ['cordis.yml', '[]\n'],
-    ['pnpm-workspace.yaml', 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n'],
-  ]);
-  for (const [name, content] of files) {
-    const file = path.join(profileDir, name);
-    if (!fs.existsSync(file)) writeAtomic(file, content);
-  }
-  const patchPath = path.join(profileDir, 'cordis.patch.yml');
-  const existingPatch = fs.existsSync(patchPath) ? fs.readFileSync(patchPath, 'utf8') : '';
-  if (!existingPatch.includes('id: qifu-account-context')) {
-    const nextPatch = existingPatch.trim() === '' || existingPatch.trim() === '[]'
-      ? QIFU_CONTEXT_PATCH
-      : `${existingPatch.trimEnd()}\n${QIFU_CONTEXT_PATCH}`;
-    writeAtomic(patchPath, nextPatch);
-  }
-}
-
 async function gatewaySessionToken() {
   const cookies = await session.defaultSession.cookies.get({ url: GATEWAY_URL, name: GATEWAY_SESSION_COOKIE });
   const token = cookies[0]?.value;
@@ -319,11 +272,13 @@ async function startLocalRuntime() {
     if (!fs.existsSync(cli)) throw new Error('本机运行时组件缺失，请重新安装客户端。');
     if (!fs.existsSync(certificate)) throw new Error('网关证书组件缺失，请重新安装客户端。');
     fs.mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
+    const localWorkspace = path.join(dataRoot, LOCAL_WORKSPACE_DIRECTORY);
+    fs.mkdirSync(localWorkspace, { recursive: true, mode: 0o700 });
     const dshHome = path.join(dataRoot, '.dsh');
     ensureLocalWebProfile(dshHome);
     const token = await gatewaySessionToken();
     const child = spawn(cli, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
-      cwd: app.getPath('documents'),
+      cwd: localWorkspace,
       env: {
         ...process.env,
         CI: 'true',
@@ -343,6 +298,7 @@ async function startLocalRuntime() {
     const runtime = await new Promise((resolve, reject) => {
       let output = '';
       let settled = false;
+      let initializing = false;
       const timeout = setTimeout(() => fail(new Error('本机运行时启动超时。')), 30_000);
       const cleanup = () => {
         clearTimeout(timeout);
@@ -361,14 +317,27 @@ async function startLocalRuntime() {
         if (settled) return;
         output = `${output}${String(chunk)}`.slice(-MAX_STARTUP_OUTPUT);
         const match = READY_PATTERN.exec(output);
-        if (!match) return;
-        const authenticatedUrl = new URL(match[1]);
-        if (authenticatedUrl.hostname !== '127.0.0.1') return fail(new Error('本机运行时地址不安全。'));
-        settled = true;
-        cleanup();
-        child.stdout.resume();
-        child.stderr.resume();
-        resolve({ child, origin: new URL(authenticatedUrl.origin), authenticatedUrl: authenticatedUrl.href });
+        if (!match || initializing) return;
+        initializing = true;
+        let origin;
+        try {
+          origin = validateRuntimeOrigin(match[1]);
+        } catch (error) {
+          fail(error);
+          return;
+        }
+        void (async () => {
+          const cookie = await exchangeDshToken(origin, match[2]);
+          await ensureEmployeeLocalWorkspace(origin, cookie, localWorkspace);
+          await session.defaultSession.cookies.set(localRuntimeCookie(origin, cookie));
+          if (settled) return;
+          settled = true;
+          output = '';
+          cleanup();
+          child.stdout.resume();
+          child.stderr.resume();
+          resolve({ child, origin });
+        })().catch(fail);
       };
       child.stdout.on('data', onData);
       child.stderr.on('data', onData);
@@ -397,9 +366,7 @@ async function switchRuntime(target) {
   }
   const runtime = await startLocalRuntime();
   runtimeMode = 'local';
-  const cookies = await session.defaultSession.cookies.get({ url: runtime.origin.href });
-  const hasDshSession = cookies.some(cookie => cookie.name.startsWith('dsh-auth-'));
-  await mainWindow.loadURL(hasDshSession ? runtime.origin.href : runtime.authenticatedUrl);
+  await mainWindow.loadURL(runtime.origin.href);
   return { ok: true };
 }
 

@@ -67,7 +67,14 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
   const desktop = window.qifuDesktop
   const mode = state.mode
   const switchRuntime = (target: 'local' | 'cloud'): void => {
-    void window.qifuDesktop?.switchRuntime(target)
+    if (desktop === undefined) return
+    setSyncState({ busy: true, message: '' })
+    void desktop.switchRuntime(target).then((result) => {
+      setSyncState({
+        busy: false,
+        message: result.ok ? '' : result.message ?? t('runtime.error'),
+      })
+    }, () => { setSyncState({ busy: false, message: t('runtime.error') }) })
   }
   const runSync = (operation: () => Promise<{ ok: boolean; cancelled?: boolean; message?: string }>): void => {
     setSyncState({ busy: true, message: '' })
@@ -138,7 +145,12 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
       <Section title={t('cloud')} icon={<IconDatabaseOutline16 size={16} />}>
         {mode === 'cloud' ? workspaces : cloudRows}
         {mode === 'local' && desktop !== undefined && (
-          <button type="button" className={css.switchRow} onClick={() => { switchRuntime('cloud') }}>
+          <button
+            type="button"
+            className={css.switchRow}
+            disabled={syncState.busy}
+            onClick={() => { switchRuntime('cloud') }}
+          >
             {t('switch.cloud')}
           </button>
         )}
@@ -147,7 +159,12 @@ export function QifuWorkSurface({ wide, workspaces, sessionList, t }: QifuWorkSu
         {mode === 'local' ? workspaces : (
           window.qifuDesktop === undefined
             ? <div className={css.empty}>{t('unavailable')}</div>
-            : <button type="button" className={css.switchRow} onClick={() => { switchRuntime('local') }}>
+            : <button
+              type="button"
+              className={css.switchRow}
+              disabled={syncState.busy}
+              onClick={() => { switchRuntime('local') }}
+            >
               {t('switch.local')}
             </button>
         )}

@@ -272,6 +272,67 @@ describe('client bundle activation', () => {
     },
   )
 
+  it('follows a packaged-runtime module proxy to the source client manifest and bundle', () => {
+    const packageName = '@fixture/packaged-runtime-proxy'
+    const clientPath = writePackage(packageName)
+    const sourceHostPath = join(dirname(clientPath), 'index.js')
+    mkdirSync(dirname(sourceHostPath), { recursive: true })
+    writeFileSync(sourceHostPath, 'export default {}\n')
+    writeFileSync(clientPath, 'window.packagedRuntimeProxy = true\n')
+    const proxyRoot = join(root!, 'profile', 'node_modules', ...packageName.split('/'))
+    const proxyHostPath = join(proxyRoot, 'entry-0.js')
+    mkdirSync(proxyRoot, { recursive: true })
+    writeFileSync(proxyHostPath, `export * from ${JSON.stringify(pathToFileURL(sourceHostPath).href)}\n`)
+    writeFileSync(join(proxyRoot, 'entry-1.js'), `export * from ${JSON.stringify(pathToFileURL(clientPath).href)}\n`)
+    writeFileSync(join(proxyRoot, 'package.json'), JSON.stringify({
+      name: packageName,
+      exports: { '.': './entry-0.js', './client': './entry-1.js' },
+      dsh: {
+        moduleFallback: {
+          targets: {
+            '.': pathToFileURL(sourceHostPath).href,
+            './client': pathToFileURL(clientPath).href,
+          },
+        },
+      },
+    }))
+    const internal = {
+      version: 'v2' as const,
+      resolveSync: () => ({ format: 'module' as const, url: pathToFileURL(proxyHostPath).href }),
+    }
+
+    const { service } = constructWithRoute([packageName], {
+      entryBaseUrl: pathToFileURL(join(root!, 'profile')).href + '/',
+      internal: internal as unknown as NonNullable<Context['loader']['internal']>,
+    })
+
+    expect(service.clientPath(packageName)).toBe(clientPath)
+    expect(service.graph().entries.map(entry => entry.id)).toEqual([packageName])
+  })
+
+  it('rejects a packaged-runtime module proxy whose source target cycles', () => {
+    const packageName = '@fixture/packaged-runtime-proxy-cycle'
+    root ??= realpathSync(mkdtempSync(join(tmpdir(), 'dsh-client-modules-')))
+    const proxyRoot = join(root, 'profile', 'node_modules', ...packageName.split('/'))
+    const proxyHostPath = join(proxyRoot, 'entry-0.js')
+    mkdirSync(proxyRoot, { recursive: true })
+    writeFileSync(proxyHostPath, 'export default {}\n')
+    writeFileSync(join(proxyRoot, 'package.json'), JSON.stringify({
+      name: packageName,
+      exports: { '.': './entry-0.js' },
+      dsh: { moduleFallback: { targets: { '.': pathToFileURL(proxyHostPath).href } } },
+    }))
+    const internal = {
+      version: 'v2' as const,
+      resolveSync: () => ({ format: 'module' as const, url: pathToFileURL(proxyHostPath).href }),
+    }
+
+    expect(() => constructWithRoute([packageName], {
+      entryBaseUrl: pathToFileURL(join(root!, 'profile')).href + '/',
+      internal: internal as unknown as NonNullable<Context['loader']['internal']>,
+    })).toThrow(`client-modules: ${packageName} dsh.moduleFallback target forms a package cycle`)
+  })
+
   it('derives the browser module id from a file entry owning manifest', () => {
     const packageName = '@fixture/file-entry'
     const clientPath = writePackage(packageName)

@@ -63,7 +63,7 @@ interface DesktopGatewayResponse {
 export interface QifuDesktopBridge {
   gatewayRequest(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }): Promise<DesktopGatewayResponse>
   runtimeInfo(): Promise<{ mode: 'local' | 'cloud' }>
-  switchRuntime(target: 'local' | 'cloud'): Promise<{ ok: boolean }>
+  switchRuntime(target: 'local' | 'cloud'): Promise<{ ok: boolean; message?: string }>
   openFeature(feature: QifuFeature): Promise<{ ok: boolean }>
   syncFile(): Promise<{ ok: boolean; cancelled?: boolean; message?: string }>
   syncSession(sessionId: string, title: string): Promise<{ ok: boolean; message?: string }>

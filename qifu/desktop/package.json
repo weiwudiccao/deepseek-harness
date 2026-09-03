@@ -1,10 +1,11 @@
 {
   "name": "qifuai-brain-server-client",
-  "version": "0.1.2-alpha.6",
+  "version": "0.1.2-alpha.7",
   "private": true,
   "description": "Employee-authenticated QifuAI Brain client with isolated cloud and local work surfaces.",
   "main": "src/main.cjs",
   "scripts": {
+    "test": "node --test test/*.test.cjs",
     "prepare:mac": "node scripts/prepare-assets.mjs macos-arm64",
     "prepare:win": "node scripts/prepare-assets.mjs win-x64",
     "pack:mac": "npm run prepare:mac && electron-builder --config electron-builder.yml --mac dmg --arm64",

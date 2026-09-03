@@ -197,6 +197,26 @@ function exactPackageSpecifier(specifier: string): string | undefined {
   return specifier.length > 0 && !specifier.includes('/') ? specifier : undefined
 }
 
+/** Resolve the source entry recorded by an app-boot packaged-runtime module proxy. */
+function moduleFallbackSource(packageName: string, manifest: Record<string, unknown>): string | undefined {
+  const dsh = manifest.dsh
+  if (typeof dsh !== 'object' || dsh === null) return undefined
+  const fallback = (dsh as Record<string, unknown>).moduleFallback
+  if (fallback === undefined) return undefined
+  if (typeof fallback !== 'object' || fallback === null) {
+    throw new Error(`client-modules: ${packageName} dsh.moduleFallback must be an object`)
+  }
+  const targets = (fallback as Record<string, unknown>).targets
+  if (typeof targets !== 'object' || targets === null || Array.isArray(targets)) {
+    throw new Error(`client-modules: ${packageName} dsh.moduleFallback.targets must be an object`)
+  }
+  const source = (targets as Record<string, unknown>)['.']
+  if (typeof source !== 'string' || !source.startsWith('file:')) {
+    throw new Error(`client-modules: ${packageName} dsh.moduleFallback.targets["."] must be a file URL`)
+  }
+  return source
+}
+
 /** Narrow an unknown parsed JSON value to the `dsh.client` declaration, throwing on malformed fields. */
 function parseDshClient(pkgName: string, value: unknown): DshClientDeclaration | undefined {
   if (value === undefined) return undefined
@@ -823,6 +843,7 @@ export class ClientModuleRegistry extends Service {
   private nearestPackage(
     moduleUrl: string,
     expectedPackageName?: string,
+    visitedManifests: ReadonlySet<string> = new Set(),
   ): { path: string; packageName: string } | undefined {
     if (!moduleUrl.startsWith('file:')) return undefined
     let dir = dirname(fileURLToPath(moduleUrl))
@@ -830,11 +851,26 @@ export class ClientModuleRegistry extends Service {
       const candidate = join(dir, 'package.json')
       if (existsSync(candidate)) {
         try {
-          const name = (JSON.parse(readFileSync(candidate, 'utf8')) as { name?: unknown }).name
+          const manifest = JSON.parse(readFileSync(candidate, 'utf8')) as Record<string, unknown>
+          const name = manifest.name
           if (typeof name === 'string' && (expectedPackageName === undefined || name === expectedPackageName)) {
+            if (visitedManifests.has(candidate)) {
+              throw new Error(`client-modules: ${name} dsh.moduleFallback target forms a package cycle`)
+            }
+            const source = moduleFallbackSource(name, manifest)
+            if (source !== undefined) {
+              const nextVisited = new Set(visitedManifests)
+              nextVisited.add(candidate)
+              const located = this.nearestPackage(source, name, nextVisited)
+              if (located === undefined) {
+                throw new Error(`client-modules: ${name} dsh.moduleFallback target has no source package manifest`)
+              }
+              return located
+            }
             return { path: candidate, packageName: name }
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof Error && error.message.startsWith('client-modules:')) throw error
           // An unreadable or malformed intermediate manifest cannot own the
           // module; keep walking toward the declaring package root.
         }

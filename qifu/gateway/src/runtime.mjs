@@ -230,6 +230,8 @@ export function createDshRuntimeProvider(options) {
           DSH_HOME: dshHome,
           CI: 'true',
           NODE_ENV: 'production',
+          DEEPSEEK_API_KEY: sessionToken,
+          DEEPSEEK_BASE_URL: `${contextOrigin}/qifu-model/v1`,
           NODE_EXTRA_CA_CERTS: certificatePath,
           QIFUAI_CONTEXT_URL: `${contextOrigin}/qifu/v1/personalization/context`,
           QIFUAI_CONTEXT_TOKEN: sessionToken,

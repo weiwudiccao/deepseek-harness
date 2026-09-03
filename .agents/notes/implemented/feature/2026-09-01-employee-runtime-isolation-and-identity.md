@@ -20,9 +20,11 @@ The settings shell exposes an optional `settings.account` seat at the sidebar fo
 
 This boundary isolates DSH-owned Sessions, settings, credentials, and other data rooted at `DSH_HOME`. It does not create a separate source checkout or filesystem workspace for each employee: the deployment still chooses the working directory and filesystem policy independently.
 
+Each employee runtime uses its opaque gateway Session token as the credential for `DEEPSEEK_BASE_URL` at the gateway's `/qifu-model/v1` endpoint. The gateway validates that employee Session before replacing the authorization header with the server-owned model credential. The upstream model credential never enters an employee runtime, browser, installer, or employee home.
+
 ## Verification
 
-Gateway tests pin stable distinct storage keys, same-employee startup coalescing, different `DSH_HOME` values, runtime teardown, per-user HTTP routing, distinct DSH cookies, and the employee fields returned by `/auth/session`. Client tests pin response validation, expanded name/designation rendering, collapsed rendering, click-to-reveal Settings behavior, unavailable-profile fallback, slot lifecycle, and sidebar snapshots.
+Gateway tests pin stable distinct storage keys, same-employee startup coalescing, different `DSH_HOME` values, runtime teardown, per-user HTTP routing, distinct DSH cookies, employee-token model routing without the server model credential, and the employee fields returned by `/auth/session`. Client tests pin response validation, expanded name/designation rendering, collapsed rendering, click-to-reveal Settings behavior, unavailable-profile fallback, slot lifecycle, and sidebar snapshots.
 
 ## Alternatives considered
 

@@ -169,6 +169,8 @@ test('one employee reuses one runtime while different employees get separate hom
   assert.equal(directories[2].origin, 'http://127.0.0.1:41001/')
   assert.match(spawns[0].options.env.DSH_HOME, /\/var\/lib\/qifuaigent\/users\/[a-f0-9]{64}\/\.dsh$/u)
   assert.notEqual(spawns[0].options.env.DSH_HOME, spawns[1].options.env.DSH_HOME)
+  assert.equal(spawns[0].options.env.DEEPSEEK_API_KEY, 'session-token-a')
+  assert.equal(spawns[0].options.env.DEEPSEEK_BASE_URL, 'https://gateway.example/qifu-model/v1')
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_URL, 'https://gateway.example/qifu/v1/personalization/context')
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_TOKEN, 'session-token-a')
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_LOCAL, 'false')

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-01-employee-runtime-isolation-and-identity.md
-2026-09-01-employee-runtime-isolation-and-identity.md: 514c79a7524d6f70034ba3300d638b7f2345dfa9
-2026-09-01-employee-runtime-isolation-and-identity.zh.md: 946f649c03747fb0b6f62f93b8ff996726651891
+2026-09-01-employee-runtime-isolation-and-identity.md: 85f2875f43d7a3771de7fc6bfc4f3c566bc62dee
+2026-09-01-employee-runtime-isolation-and-identity.zh.md: 527a311642a0b421c24003061d56f9f83ca24e5c

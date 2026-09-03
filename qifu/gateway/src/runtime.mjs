@@ -16,8 +16,6 @@ const QIFU_CONTEXT_PATCH = `- insert:
         localContextEnv: QIFUAI_CONTEXT_LOCAL
         timeoutMs: 5000
         maxResponseBytes: 16384
-    - id: qifu-account-context-invariant
-      name: '@deepseek-ai/dsh-qifu-account-context/invariant'
 `
 
 function validateRuntimeOptions({ cliPath, cwd, dataRoot, certificatePath }) {

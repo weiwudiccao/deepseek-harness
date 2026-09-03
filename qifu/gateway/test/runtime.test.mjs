@@ -45,7 +45,7 @@ test('employee Web profiles contain the managed context plugin exactly once', as
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-qifu-account-context'], '0.1.2-alpha.3')
   assert.ok(!patch.includes('[]'))
   assert.equal(patch.match(/id: qifu-account-context$/gmu)?.length, 1)
-  assert.match(patch, /@deepseek-ai\/dsh-qifu-account-context\/invariant/u)
+  assert.ok(!patch.includes('/invariant'))
 })
 
 test('one employee reuses one runtime while different employees get separate homes', async () => {

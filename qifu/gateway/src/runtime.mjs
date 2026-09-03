@@ -76,12 +76,7 @@ export async function ensureEmployeeWebProfile(dshHome) {
   }
   const patchPath = join(profileDir, 'cordis.patch.yml')
   const existingPatch = await readOptional(patchPath)
-  if (!existingPatch.includes('id: qifu-account-context')) {
-    const nextPatch = existingPatch.trim() === '' || existingPatch.trim() === '[]'
-      ? QIFU_CONTEXT_PATCH
-      : `${existingPatch.trimEnd()}\n${QIFU_CONTEXT_PATCH}`
-    await writeAtomic(patchPath, nextPatch)
-  }
+  if (existingPatch !== QIFU_CONTEXT_PATCH) await writeAtomic(patchPath, QIFU_CONTEXT_PATCH)
 }
 
 function validateRuntimeOrigin(value) {

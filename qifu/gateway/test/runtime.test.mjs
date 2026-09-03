@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -33,13 +33,17 @@ test('employee Web profiles contain the managed context plugin exactly once', as
   const root = await mkdtemp(join(tmpdir(), 'qifu-runtime-profile-'))
   context.after(() => rm(root, { recursive: true, force: true }))
 
+  const profileDir = join(root, 'profiles', 'web')
+  await mkdir(profileDir, { recursive: true })
+  await writeFile(join(profileDir, 'cordis.patch.yml'), '# Generated empty overlay.\n[]\n')
+
   await ensureEmployeeWebProfile(root)
   await ensureEmployeeWebProfile(root)
 
-  const profileDir = join(root, 'profiles', 'web')
   const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
   const patch = await readFile(join(profileDir, 'cordis.patch.yml'), 'utf8')
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-qifu-account-context'], '0.1.2-alpha.3')
+  assert.ok(!patch.includes('[]'))
   assert.equal(patch.match(/id: qifu-account-context$/gmu)?.length, 1)
   assert.match(patch, /@deepseek-ai\/dsh-qifu-account-context\/invariant/u)
 })

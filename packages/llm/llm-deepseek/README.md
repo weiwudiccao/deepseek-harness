@@ -46,7 +46,7 @@ Choose this adapter when the deployment targets DeepSeek's official API, optiona
     filesApiTimeoutMs: 60000
 ```
 
-A request selects the route with `provider: deepseek-official`; the model id passes through to the wire, so new DeepSeek models need no re-registration. Omitted `models` advertises `deepseek-v4-flash` as the fast, economical choice for focused work, `deepseek-v4-pro` as the stronger, higher-cost choice for complex or quality-critical work, and the image-capable `deepseek-v4-flash-vision-exp`; each has a 1,000,000-token context window. An explicit list replaces those defaults, and unlisted model ids still pass through as text-only routes. Clients, including model discovery tools, can read the advisory entries through `ctx.llm.listModels('deepseek-official')`. Image-capable entries may set `imagePixelBudget` to a positive integer or `low`, and may set `imageMaxBytes`.
+A request selects the route with `provider: deepseek-official`; the model id passes through to the wire, so new DeepSeek models need no re-registration. Omitted `models` advertises `deepseek-v4-flash`, `deepseek-v4-pro`, the image-capable `deepseek-v4-flash-vision-exp`, and the image-capable `deepseek-flash` labeled `DeepSeek-V4.1-Flash-1017`; each has a 1,000,000-token context window. The canonical `deepseek-flash` id follows the version served by the endpoint rather than pinning a checkpoint. An explicit list replaces those defaults, and unlisted model ids still pass through as text-only routes. Clients, including model discovery tools, can read the advisory entries through `ctx.llm.listModels('deepseek-official')`. Image-capable entries may set `imagePixelBudget` to a positive integer or `low`, and may set `imageMaxBytes`.
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -56,7 +56,7 @@ A request selects the route with `provider: deepseek-official`; the model id pas
 | `reasoningEffort` | `high` | Default effort: `off`, `low`, `high`, or `max` |
 | `maxTokens` | `256,000` | Per-request output cap; a model's own cap and explicit request values win |
 | `defaultContextWindow` | `1,000,000` | Capacity fallback for models without an exact value |
-| `models` | V4 Flash + V4 Pro + V4 Flash Vision Exp | Advisory catalog shown by discovery consumers |
+| `models` | V4 Flash + V4 Pro + V4 Flash Vision Exp + V4.1 Flash 1017 | Advisory catalog shown by discovery consumers |
 | `streamIdleTimeoutMs` | `300,000` | Maximum provider idle time per outstanding stream read |
 | `maxRequestFilesBytes` | `128 MiB` | High watermark for retained request-image bytes before oldest-first offload |
 | `maxInlineRequestImageBytes` | `20 MiB` | Independent base64 fallback high watermark |
@@ -188,6 +188,7 @@ These limits define where the adapter stops and future work begins. They are cur
 - **Requests use raw `fetch`, not `@cordisjs/plugin-http`** — no shared proxy or interception configuration.
 - **Plugin-added content block types are skipped** — core text and supported image blocks are serialized, and empty tool output crosses the wire as the literal `(no output)`.
 - **Images are input-only durable attachments** — direct external URLs and assistant image output are not supported; DeepSeek input normally uses the Files API and uses inline base64 only for per-request recovery.
+- **V4.1 image-token estimates use the V4 calculator** — V4.1-specific image accounting is deferred; provider-reported usage remains authoritative.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -366,6 +366,54 @@ describe('DeepSeekAdapter against a mock server', () => {
     expect(server.headers[0]).not.toHaveProperty('x-deepseek-harness-compact')
   })
 
+  it('advertises V4.1 Flash and sends its canonical route with image input', async () => {
+    const server = await mockServer([{ kind: 'sse', events: textEvents }])
+    const policies: unknown[] = []
+    const attachments = attachmentStoreOf((ref, policy) => {
+      policies.push(policy)
+      return Promise.resolve(requestImage(ref))
+    }).store
+    const adapter = adapterOf({ baseURL: server.url }, attachments)
+
+    await expect(adapter.listModels('deepseek-official')).resolves.toContainEqual({
+      provider: 'deepseek-official',
+      id: 'deepseek-flash',
+      name: 'DeepSeek-V4.1-Flash-1017',
+      inputModalities: ['text', 'image'],
+    })
+    await expect(adapter.resolveModel('deepseek-official', 'deepseek-flash')).resolves.toMatchObject({
+      provider: 'deepseek-official',
+      id: 'deepseek-flash',
+      name: 'DeepSeek-V4.1-Flash-1017',
+      inputModalities: ['text', 'image'],
+      context: { contextWindow: 1_000_000 },
+      defaultMaxTokens: 256_000,
+      reasoning: { defaultEffort: ReasoningEffortId('high') },
+    })
+
+    await drain(adapter.stream({
+      provider: 'deepseek-official',
+      model: 'deepseek-flash',
+      messages: [createUserMessage({
+        content: [{ type: 'image', attachment: imageRef }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }))
+
+    expect(server.requests).toEqual([expect.objectContaining({
+      model: 'deepseek-flash',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: expect.stringContaining(`Image ${imageRef.attachmentId}; request preview 1x1px.`) as string },
+          { type: 'file', file_id: 'file-api-1' },
+        ],
+      }],
+    })])
+    expect(server.fileRequests).toHaveLength(1)
+    expect(policies).toEqual([{ maxPixels: 640_000, maxBytes: 1024 * 1024 }])
+  })
+
   it('uploads a durable image once and sends only its Files API id to the vision model', async () => {
     const server = await mockServer([{ kind: 'sse', events: textEvents }])
     const signalSeen: (AbortSignal | undefined)[] = []
@@ -1712,6 +1760,7 @@ describe('plugin registration and config', () => {
         inputModalities: ['text'],
       },
       { provider: 'deepseek-official', id: 'deepseek-v4-flash-vision-exp', name: 'DeepSeek-V4-Flash-Vision-Exp', inputModalities: ['text', 'image'] },
+      { provider: 'deepseek-official', id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash-1017', inputModalities: ['text', 'image'] },
     ])
     await expect(ctx.llm.resolveModelInfo('deepseek-official', 'deepseek-v4-flash'))
       .resolves.toMatchObject({
@@ -1839,6 +1888,7 @@ describe('plugin registration and config', () => {
         inputModalities: ['text'],
       },
       { provider: 'deepseek-official', id: 'deepseek-v4-flash-vision-exp', name: 'DeepSeek-V4-Flash-Vision-Exp', inputModalities: ['text', 'image'] },
+      { provider: 'deepseek-official', id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash-1017', inputModalities: ['text', 'image'] },
     ])
   })
 
@@ -2138,7 +2188,7 @@ describe('plugin registration and config', () => {
     // First-boot onboarding: the route registers so models stay discoverable;
     // only the request itself needs a key.
     expect(ctx.llm.listProviders()).toEqual([{ id: 'deepseek-official', name: 'DeepSeek' }])
-    await expect(ctx.llm.listModels('deepseek-official')).resolves.toHaveLength(3)
+    await expect(ctx.llm.listModels('deepseek-official')).resolves.toHaveLength(4)
     const first = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
     expect(first.finish).toMatchObject({ kind: 'error', failure: { code: 'MISSING_CREDENTIAL' } })
     // The guidance leads with the managed credential store.
@@ -2226,7 +2276,7 @@ describe('plugin registration and config', () => {
     expect(adapter).toBeInstanceOf(DeepSeekAdapter)
     // Direct embedding shares the plugin's one resolve step, so it advertises
     // the same default catalog instead of a divergent empty one.
-    await expect(adapter.listModels('deepseek-official')).resolves.toHaveLength(3)
+    await expect(adapter.listModels('deepseek-official')).resolves.toHaveLength(4)
   })
 
   it('resolves connection facts and the credential exactly once per stream call', async () => {

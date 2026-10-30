@@ -5,3 +5,4 @@
 3. 更新前备份 /opt/qifuaigent-gateway 源码；生产数据库备份由 OA 发布流程单独负责。
 4. 更新后执行 systemctl daemon-reload、restart，并核服务 MainPID、启动时间、/healthz、未认证 401、证书指纹、员工运行时中的“云端工作区”自动注册，以及画像/记忆上下文接口仍按员工会话隔离。
 5. 客户端固定证书更新必须与网关证书切换作为同一受控发布，保留旧版回滚路径。
+6. 模型代理转发 Fetch 已解压的响应体时，不转发上游 content-encoding 和 content-length；验收必须包含真实 stream:true 请求完整读到 [DONE]，非流式 JSON 成功不足以证明流式代理可用。

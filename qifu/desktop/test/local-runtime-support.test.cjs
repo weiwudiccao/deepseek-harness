@@ -10,7 +10,54 @@ const {
   ensureLocalWebProfile,
   exchangeDshToken,
   localRuntimeCookie,
+  pickLocalDirectory,
 } = require('../src/local-runtime-support.cjs');
+
+function directoryPickerState(overrides = {}) {
+  return {
+    mode: 'local',
+    runtimeOrigin: new URL('http://127.0.0.1:43120/'),
+    senderUrl: 'http://127.0.0.1:43120/',
+    ...overrides,
+  };
+}
+
+test('local directory picker returns the native selection and treats cancellation as null', async () => {
+  const selected = join(tmpdir(), 'picked-workspace');
+  assert.equal(await pickLocalDirectory(
+    () => directoryPickerState(),
+    async () => ({ canceled: false, filePaths: [selected] }),
+  ), selected);
+  assert.equal(await pickLocalDirectory(
+    () => directoryPickerState(),
+    async () => ({ canceled: true, filePaths: [] }),
+  ), null);
+});
+
+test('local directory picker refuses cloud, missing runtime, and unrelated frames before opening a dialog', async () => {
+  let opened = 0;
+  const showDialog = async () => { opened += 1; return { canceled: true, filePaths: [] }; };
+  for (const state of [
+    directoryPickerState({ mode: 'cloud' }),
+    directoryPickerState({ runtimeOrigin: undefined }),
+    directoryPickerState({ senderUrl: 'https://47.106.208.2:3443/' }),
+    directoryPickerState({ senderUrl: 'http://127.0.0.1:43121/' }),
+    directoryPickerState({ senderUrl: 'file:///login.html' }),
+  ]) {
+    await assert.rejects(pickLocalDirectory(() => state, showDialog), /本机/u);
+  }
+  assert.equal(opened, 0);
+});
+
+test('local directory picker does not return a path after the surface switches to cloud', async () => {
+  let state = directoryPickerState();
+  let finish;
+  const selection = new Promise(resolve => { finish = resolve; });
+  const pending = pickLocalDirectory(() => state, () => selection);
+  state = directoryPickerState({ mode: 'cloud' });
+  finish({ canceled: false, filePaths: [join(tmpdir(), 'private-workspace')] });
+  await assert.rejects(pending, /本机/u);
+});
 
 test('local Web profile removes the unsupported invariant entry from existing employee homes', (context) => {
   const root = mkdtempSync(join(tmpdir(), 'qifu-local-profile-'));

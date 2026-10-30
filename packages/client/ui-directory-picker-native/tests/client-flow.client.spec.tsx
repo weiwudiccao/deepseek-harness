@@ -9,7 +9,12 @@ import { apply, inject } from '../src/client/index.ts'
 import { NativeDirectoryFlow } from '../src/client/flow.ts'
 import { apply as nodeApply } from '../src/index.ts'
 
-afterEach(cleanup)
+const desktopDescriptor = Object.getOwnPropertyDescriptor(window, 'qifuDesktop')
+afterEach(() => {
+  cleanup()
+  if (desktopDescriptor === undefined) Reflect.deleteProperty(window, 'qifuDesktop')
+  else Object.defineProperty(window, 'qifuDesktop', desktopDescriptor)
+})
 
 const HOLES = ['conversation.hero.workspace.directoryFlow', 'sidebar.workspaces.directoryFlow'] as const
 
@@ -147,6 +152,73 @@ describe('directory-picker-native client half', () => {
     const injected = (entry.inject as () => { pick: () => Promise<string | null> })()
     await expect(injected.pick()).resolves.toBe('/tmp/picked')
     expect(b.pickDirectory).toHaveBeenCalledOnce()
+  })
+
+  it('uses the desktop native dialog through both registered flows without calling the Host picker', async () => {
+    const desktopPick = vi.fn(async () => '/tmp/desktop-workspace')
+    Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: { pickDirectory: desktopPick } })
+    const b = await bench()
+    b.declare()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    try {
+      for (const hole of HOLES) {
+        const entry = b.slots.entries(hole)[0]!
+        const injected = (entry.inject as () => { pick: () => Promise<string | null> })()
+        const props = owner()
+        const view = render(<NativeDirectoryFlow {...props} {...injected} />)
+        await act(async () => {})
+        expect(props.onPicked).toHaveBeenCalledWith('/tmp/desktop-workspace')
+        view.unmount()
+      }
+      expect(desktopPick).toHaveBeenCalledTimes(2)
+      expect(b.pickDirectory).not.toHaveBeenCalled()
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('keeps desktop cancellation and failures on the desktop path', async () => {
+    const desktopPick = vi.fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('desktop directory selection denied'))
+    Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: { pickDirectory: desktopPick } })
+    const b = await bench()
+    b.declare()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    try {
+      const entry = b.slots.entries(HOLES[0])[0]!
+      const injected = (entry.inject as () => { pick: () => Promise<string | null> })()
+      const canceled = owner()
+      const canceledView = render(<NativeDirectoryFlow {...canceled} {...injected} />)
+      await act(async () => {})
+      expect(canceled.onCancel).toHaveBeenCalledOnce()
+      canceledView.unmount()
+      const failed = owner()
+      render(<NativeDirectoryFlow {...failed} {...injected} />)
+      await act(async () => {})
+      expect(failed.onError).toHaveBeenCalledWith('desktop directory selection denied')
+      expect(b.pickDirectory).not.toHaveBeenCalled()
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('keeps the Host picker when the desktop bridge does not expose directory selection', async () => {
+    Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: {} })
+    const b = await bench()
+    b.declare()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    try {
+      const entry = b.slots.entries(HOLES[0])[0]!
+      const injected = (entry.inject as () => { pick: () => Promise<string | null> })()
+      await expect(injected.pick()).resolves.toBe('/tmp/picked')
+      expect(b.pickDirectory).toHaveBeenCalledOnce()
+    } finally {
+      await fiber.dispose()
+    }
   })
 
   it('runs one pick per open edge and reports the path to the latest onPicked', async () => {

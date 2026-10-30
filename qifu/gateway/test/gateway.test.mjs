@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert'
 import { createServer } from 'node:http'
 import test from 'node:test'
+import { brotliCompressSync, gzipSync } from 'node:zlib'
 import { createFrappeAuthenticator, createGateway, createModelForwarder } from '../src/gateway.mjs'
 
 async function listen(handler) {
@@ -357,3 +358,44 @@ test('local runtimes use their employee session token without receiving the serv
     url: '/chat/completions',
   }])
 })
+
+for (const [encoding, compress] of [['gzip', gzipSync], ['br', brotliCompressSync]]) {
+  test(`model forwarding reads ${encoding}-compressed SSE once`, async (context) => {
+    const events = 'data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: [DONE]\n\n'
+    const compressed = compress(Buffer.from(events))
+    const upstream = await listen((request, response) => {
+      request.resume()
+      response.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'content-encoding': encoding,
+        'content-length': String(compressed.length),
+        'x-request-id': 'compressed-stream',
+      })
+      response.end(compressed)
+    })
+    context.after(upstream.close)
+    const forward = createModelForwarder({
+      baseUrl: upstream.origin.href,
+      apiKey: 'server-only-model-key',
+      allowHttp: true,
+    })
+    const proxy = await listen((request, response) => {
+      void forward(request, response, new URL(request.url, 'http://gateway.invalid'))
+        .catch(() => response.destroy())
+    })
+    context.after(proxy.close)
+
+    const response = await fetch(new URL('/qifu-model/v1/chat/completions', proxy.origin), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"model":"deepseek-flash","messages":[],"stream":true}',
+    })
+
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), events)
+    assert.equal(response.headers.get('content-encoding'), null)
+    assert.equal(response.headers.get('content-length'), null)
+    assert.equal(response.headers.get('content-type'), 'text/event-stream')
+    assert.equal(response.headers.get('x-request-id'), 'compressed-stream')
+  })
+}

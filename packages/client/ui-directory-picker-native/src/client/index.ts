@@ -1,9 +1,10 @@
 /**
  * Browser half of the native directory-picker backend: fills ui-workspace's
  * two directory-flow holes with a renderless occupant that answers each
- * `open` by driving `directoryPicker/pick` (the node half's OS chooser) and
- * reporting the one outcome — picked path, cancellation, or failure — back
- * through the owner conversation. Mounting this package therefore composes
+ * `open` through the desktop preload's folder dialog when available, otherwise
+ * `directoryPicker/pick` (the node half's OS chooser), and reports one outcome —
+ * picked path, cancellation, or failure — through the owner conversation.
+ * Mounting this package therefore composes
  * both sides of the native interaction with one cordis.yml row; no client
  * code branches on a capability kind.
  */
@@ -26,7 +27,16 @@ export const inject = ['slots', 'uiWorkspace']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const injected = (): NativeFlowInjected => ({ pick: () => ctx.uiWorkspace.pickDirectory() })
+  const injected = (): NativeFlowInjected => ({
+    pick: () => {
+      const desktop = (window as Window & {
+        qifuDesktop?: { pickDirectory?: () => Promise<string | null> }
+      }).qifuDesktop
+      return typeof desktop?.pickDirectory === 'function'
+        ? desktop.pickDirectory()
+        : ctx.uiWorkspace.pickDirectory()
+    },
+  })
   // Both declaration lifetimes must be live before the pair installs; the
   // generator makes the two registrations one transactional effect. The
   // outer/inner nesting order is arbitrary; neither hole has precedence.

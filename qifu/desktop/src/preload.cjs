@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('qifuDesktop', {
     body: init && init.body,
   }),
   runtimeInfo: () => ipcRenderer.invoke('desktop:runtime-info'),
+  pickDirectory: () => ipcRenderer.invoke('desktop:pick-directory'),
   switchRuntime: (target) => ipcRenderer.invoke('desktop:switch-runtime', target),
   openFeature: (feature) => ipcRenderer.invoke('desktop:open-feature', feature),
   syncFile: () => ipcRenderer.invoke('desktop:sync-file'),

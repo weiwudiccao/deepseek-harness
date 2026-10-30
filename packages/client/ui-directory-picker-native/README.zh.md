@@ -27,6 +27,8 @@ kind: "package-reference"
 
 与 `ui-workspace` 及宿主后端 [`dsh-host-directory-picker-native`](../../host/directory-picker-native/README.zh.md) 一起挂载本插件；一行 cordis.yml 随即组合出完整的原生拾取交互。当工作区添加或选择器流程发起目录请求时，用户看到操作系统的文件夹对话框；拾取的路径被工作区流程采纳，取消则关闭对话框。
 
+企福桌面预加载层可以提供 `qifuDesktop.pickDirectory()`。存在该能力时，原生流程使用该桥接接口替代宿主 RPC 选择器，Electron 主进程只允许当前本机运行时渲染器调用。取消返回 null；桥接失败进入工作区错误对话框，不再打开第二个选择器。
+
 ### 何时选择
 
 当浏览器与宿主运行在同一台机器上、操作系统对话框可以在那里打开时，选择此表面。当浏览器为远程或进程内、没有本地选择器时，选择 [`-browse`](../ui-directory-picker-browse/README.zh.md) 表面。两个表面填充相同的槽位，因此切换只是组合改动，而非代码改动。

@@ -74,6 +74,25 @@ function validateRuntimeOrigin(value) {
   return origin;
 }
 
+/** Open a local folder dialog only while its caller still belongs to the device runtime. */
+async function pickLocalDirectory(readState, showDialog) {
+  const authorize = () => {
+    const state = readState();
+    if (state.mode !== 'local' || state.runtimeOrigin === undefined) {
+      throw new Error('请先进入本机内容，再选择工作区。');
+    }
+    const origin = validateRuntimeOrigin(state.runtimeOrigin);
+    if (new URL(state.senderUrl).origin !== origin.origin) {
+      throw new Error('该操作只能从当前本机工作区调用。');
+    }
+  };
+  authorize();
+  const selection = await showDialog();
+  authorize();
+  if (selection.canceled || selection.filePaths.length === 0) return null;
+  return selection.filePaths[0];
+}
+
 function exchangeDshTokenOnce(origin, token, requestImpl) {
   return new Promise((resolve, reject) => {
     const request = requestImpl({
@@ -243,5 +262,6 @@ module.exports = {
   ensureLocalWebProfile,
   exchangeDshToken,
   localRuntimeCookie,
+  pickLocalDirectory,
   validateRuntimeOrigin,
 };

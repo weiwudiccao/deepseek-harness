@@ -232,7 +232,12 @@ export function createModelForwarder({ baseUrl, apiKey, fetchImpl = fetch, allow
     }
     const headersOut = {}
     for (const [name, value] of upstream.headers) {
-      if (!HOP_BY_HOP_HEADERS.has(name.toLowerCase()) && name.toLowerCase() !== 'set-cookie') {
+      const lowerName = name.toLowerCase()
+      // Fetch exposes decoded bytes, so upstream compression headers describe a different body.
+      if (!HOP_BY_HOP_HEADERS.has(lowerName)
+        && lowerName !== 'set-cookie'
+        && lowerName !== 'content-encoding'
+        && lowerName !== 'content-length') {
         headersOut[name] = value
       }
     }

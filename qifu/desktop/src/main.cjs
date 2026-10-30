@@ -8,6 +8,7 @@ const {
   ensureLocalWebProfile,
   exchangeDshToken,
   localRuntimeCookie,
+  pickLocalDirectory,
   validateRuntimeOrigin,
 } = require('./local-runtime-support.cjs');
 
@@ -555,6 +556,18 @@ ipcMain.handle('desktop:runtime-info', (event) => {
   assertAppSender(event);
   return { mode: runtimeMode };
 });
+
+ipcMain.handle('desktop:pick-directory', (event) => pickLocalDirectory(
+  () => {
+    assertAppSender(event);
+    return {
+      mode: runtimeMode,
+      runtimeOrigin: localRuntime?.origin,
+      senderUrl: event.senderFrame.url,
+    };
+  },
+  () => dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] }),
+));
 
 ipcMain.handle('desktop:switch-runtime', async (event, target) => {
   assertAppSender(event);

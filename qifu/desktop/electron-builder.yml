@@ -23,7 +23,7 @@ mac:
     - target: dmg
       arch:
         - arm64
-  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.9-mac-arm64.${ext}
+  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.10-mac-arm64.${ext}
 win:
   requestedExecutionLevel: asInvoker
   target:
@@ -31,4 +31,4 @@ win:
       arch:
         - x64
 portable:
-  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.9-windows-x64.${ext}
+  artifactName: QifuAI-Brain-Server-Client-0.1.2-alpha.10-windows-x64.${ext}

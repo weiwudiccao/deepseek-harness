@@ -12,6 +12,8 @@ The Qifu desktop client embeds the DSH SEA runtime and connects employee session
 
 The Electron preload exposes directory selection to the native directory-flow consumer. The main process accepts only its trusted local-runtime renderer, opens Electron's directory dialog, and checks the active local runtime again before returning the selected path. Cancellation returns null. Browser consumers without the bridge keep the Host-native RPC picker. The [single-file runtime decision](2026-07-10-single-file-executable-sdk-runtime-distribution.md) retains ownership of the SEA application entry; directory selection adds no runtime argv escape or system Node requirement.
 
+Each local runtime belongs to one employee id and one gateway login-token generation. Entering local mode revalidates the employee session before reusing a process. Successful login retires the previous generation, including pending starts; failed login preserves the active generation. A retired child cannot publish itself or send the current client back to login when it exits. Login tokens remain in memory and are never included in diagnostic output.
+
 The model gateway forwards the body exposed by Fetch and removes content-encoding and content-length from upstream response headers. Fetch has already decoded compressed bytes, so those two fields no longer describe the forwarded representation. Authentication, certificate pinning, model credentials, and the remaining response-header filters retain their existing owners.
 
 ## Alternatives considered

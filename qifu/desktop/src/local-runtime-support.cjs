@@ -1,4 +1,4 @@
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const { request: httpRequest } = require('node:http');
 const { dirname, isAbsolute, join } = require('node:path');
@@ -72,6 +72,96 @@ function validateRuntimeOrigin(value) {
     throw new Error('本机运行时返回了不安全的地址。');
   }
   return origin;
+}
+
+/** Own one employee/token generation and wait for retired child processes to exit. */
+function createLocalRuntimeOwner({ authorize, launch, onExit }) {
+  let generation = 0;
+  let current;
+  let starting;
+  let retirement = Promise.resolve();
+  const obsolete = () => new Error('本机登录状态已更新，请重新进入本机内容。');
+  const alive = child => child.exitCode === null && child.signalCode === null;
+
+  function stop(entry) {
+    if (entry === undefined) return Promise.resolve();
+    entry.controller.abort(obsolete());
+    if (entry.stopping !== undefined) return entry.stopping;
+    if (entry.child === undefined || !alive(entry.child)) return Promise.resolve();
+    const child = entry.child;
+    entry.stopping = new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        child.off('exit', exited);
+        child.off('error', failed);
+      };
+      const exited = () => { cleanup(); resolve(); };
+      const failed = error => { cleanup(); reject(error); };
+      const timer = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch (error) { failed(error); }
+      }, 5000);
+      timer.unref?.();
+      child.once('exit', exited);
+      child.once('error', failed);
+      try { child.kill('SIGTERM'); } catch (error) { failed(error); }
+    });
+    return entry.stopping;
+  }
+
+  async function retire() {
+    generation += 1;
+    const previous = current;
+    const pending = starting;
+    current = undefined;
+    starting = undefined;
+    retirement = Promise.all([retirement, stop(previous), stop(pending)]).then(() => {});
+    await retirement;
+  }
+
+  async function get() {
+    const authorizedGeneration = generation;
+    const authorization = await authorize();
+    if (authorizedGeneration !== generation) throw obsolete();
+    const key = createHash('sha256').update(JSON.stringify([authorization.user, authorization.token])).digest('hex');
+    if (current?.key === key && alive(current.child)) return current.runtime;
+    if (starting?.key === key) return starting.promise;
+    const retired = current !== undefined || starting !== undefined ? retire() : retirement;
+    const entry = { key, generation, controller: new AbortController(), child: undefined, promise: undefined };
+    starting = entry;
+    entry.promise = (async () => {
+      try {
+        await retired;
+        if (starting !== entry || entry.generation !== generation) throw obsolete();
+        const launched = launch(authorization, entry.controller.signal);
+        entry.child = launched.child;
+        const runtime = await launched.ready;
+        if (starting !== entry || entry.generation !== generation || entry.controller.signal.aborted) throw obsolete();
+        if (!alive(entry.child)) throw new Error('本机运行时在启动完成前已停止。');
+        entry.runtime = runtime;
+        current = entry;
+        starting = undefined;
+        entry.child.once('exit', () => {
+          if (current !== entry) return;
+          current = undefined;
+          onExit?.(runtime);
+        });
+        return runtime;
+      } catch (error) {
+        const superseded = entry.controller.signal.aborted || entry.generation !== generation;
+        await stop(entry);
+        throw superseded ? obsolete() : error;
+      } finally {
+        if (starting === entry) starting = undefined;
+      }
+    })();
+    return entry.promise;
+  }
+
+  return {
+    get current() { return current?.runtime; },
+    get,
+    retire,
+  };
 }
 
 /** Open a local folder dialog only while its caller still belongs to the device runtime. */
@@ -258,6 +348,7 @@ async function ensureEmployeeLocalWorkspace(origin, cookie, workspacePath, fetch
 }
 
 module.exports = {
+  createLocalRuntimeOwner,
   ensureEmployeeLocalWorkspace,
   ensureLocalWebProfile,
   exchangeDshToken,

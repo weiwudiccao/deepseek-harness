@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  createLocalRuntimeOwner,
   ensureEmployeeLocalWorkspace,
   ensureLocalWebProfile,
   exchangeDshToken,
@@ -49,9 +50,13 @@ const GATEWAY_ROUTES = new Map([
 let mainWindow;
 let loggingIn = false;
 let runtimeMode = 'cloud';
-let localRuntime;
-let localRuntimeStarting;
-let currentIdentity;
+const localRuntimeOwner = createLocalRuntimeOwner({
+  authorize: authorizeLocalRuntime,
+  launch: launchLocalRuntime,
+  onExit: () => {
+    if (runtimeMode === 'local') void showLogin('本机运行时已停止，请重新登录。');
+  },
+});
 
 function accountPath() {
   return path.join(app.getPath('userData'), 'employee-login.json');
@@ -123,7 +128,7 @@ function isAppSender(event) {
   if (!event.senderFrame) return false;
   try {
     const origin = new URL(event.senderFrame.url).origin;
-    return origin === GATEWAY_ORIGIN || origin === localRuntime?.origin.origin;
+    return origin === GATEWAY_ORIGIN || origin === localRuntimeOwner.current?.origin.origin;
   } catch {
     return false;
   }
@@ -137,8 +142,8 @@ function assertAppSender(event) {
   if (!isAppSender(event)) throw new Error('该操作只能从企福AI智脑页面调用');
 }
 
-function sendStatus(kind, message) {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop:status', { kind, message });
+function sendStatus(window, kind, message) {
+  if (window && mainWindow === window && !window.isDestroyed()) window.webContents.send('desktop:status', { kind, message });
 }
 
 function friendlyError(error) {
@@ -192,21 +197,25 @@ async function loginEmployee(account, password, remember) {
   if (loggingIn) return { ok: false, message: '登录正在进行，请稍候。' };
   if (typeof account !== 'string' || account.trim().length === 0) return { ok: false, message: '请输入员工账号。' };
   if (typeof password !== 'string' || password.length === 0) return { ok: false, message: '请输入登录密码。' };
+  const window = mainWindow;
   loggingIn = true;
-  sendStatus('working', '正在使用正式 OA 验证员工身份…');
+  sendStatus(window, 'working', '正在使用正式 OA 验证员工身份…');
   try {
     const response = await gatewayFetch('/auth/login', {
       method: 'POST',
       body: { account: account.trim(), password },
     });
     if (!response.ok) return { ok: false, message: await responseMessage(response, '员工账号或密码不正确。') };
-    currentIdentity = await gatewayJson('/auth/session');
+    if (mainWindow !== window || window.isDestroyed()) return { ok: false, message: '登录窗口已关闭，请在当前窗口重新登录。' };
+    await localRuntimeOwner.retire();
+    await gatewayJson('/auth/session');
+    if (mainWindow !== window || window.isDestroyed()) return { ok: false, message: '登录窗口已关闭，请在当前窗口重新登录。' };
     if (remember) saveAccount(account.trim()); else forgetAccount();
-    sendStatus('working', '身份验证成功，正在进入企福AI智脑…');
+    sendStatus(window, 'working', '身份验证成功，正在进入企福AI智脑…');
     setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow === window && !window.isDestroyed()) {
         runtimeMode = 'cloud';
-        void mainWindow.loadURL(GATEWAY_URL);
+        void window.loadURL(GATEWAY_URL);
       }
     }, 120);
     return { ok: true };
@@ -221,7 +230,7 @@ function isAllowedNavigation(value) {
   if (value.startsWith('file://')) return true;
   try {
     const origin = new URL(value).origin;
-    return origin === GATEWAY_ORIGIN || origin === localRuntime?.origin.origin;
+    return origin === GATEWAY_ORIGIN || origin === localRuntimeOwner.current?.origin.origin;
   } catch {
     return false;
   }
@@ -260,114 +269,120 @@ async function gatewaySessionToken() {
   return token;
 }
 
-async function startLocalRuntime() {
-  if (localRuntime && localRuntime.child.exitCode === null) return localRuntime;
-  if (localRuntimeStarting) return localRuntimeStarting;
-  localRuntimeStarting = (async () => {
-    const identity = currentIdentity || await gatewayJson('/auth/session');
-    const user = typeof identity.user === 'string' ? identity.user : identity.employee?.id;
-    if (typeof user !== 'string' || user === '') throw new Error('员工身份信息不完整。');
-    const storageKey = crypto.createHash('sha256').update(user).digest('hex');
-    const dataRoot = path.join(app.getPath('userData'), 'local-runtime', storageKey);
-    const { root, cli, certificate } = runtimePaths();
-    if (!fs.existsSync(cli)) throw new Error('本机运行时组件缺失，请重新安装客户端。');
-    if (!fs.existsSync(certificate)) throw new Error('网关证书组件缺失，请重新安装客户端。');
-    fs.mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
-    const localWorkspace = path.join(dataRoot, LOCAL_WORKSPACE_DIRECTORY);
-    fs.mkdirSync(localWorkspace, { recursive: true, mode: 0o700 });
-    const dshHome = path.join(dataRoot, '.dsh');
-    ensureLocalWebProfile(dshHome);
-    const token = await gatewaySessionToken();
-    const child = spawn(cli, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
-      cwd: localWorkspace,
-      env: {
-        ...process.env,
-        CI: 'true',
-        NODE_ENV: 'production',
-        DSH_HOME: dshHome,
-        DEEPSEEK_API_KEY: token,
-        DEEPSEEK_BASE_URL: `${GATEWAY_URL}/qifu-model/v1`,
-        NODE_EXTRA_CA_CERTS: certificate,
-        QIFUAI_DSH_ROOT: root,
-        QIFUAI_CONTEXT_URL: `${GATEWAY_URL}/qifu/v1/personalization/context`,
-        QIFUAI_CONTEXT_TOKEN: token,
-        QIFUAI_CONTEXT_LOCAL: 'true',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    const runtime = await new Promise((resolve, reject) => {
-      let output = '';
-      let settled = false;
-      let initializing = false;
-      const timeout = setTimeout(() => fail(new Error('本机运行时启动超时。')), 30_000);
-      const cleanup = () => {
-        clearTimeout(timeout);
-        child.stdout.off('data', onData);
-        child.stderr.off('data', onData);
-        child.off('error', fail);
-      };
-      const fail = (error) => {
+async function authorizeLocalRuntime() {
+  const previousToken = await gatewaySessionToken();
+  const identity = await gatewayJson('/auth/session');
+  const token = await gatewaySessionToken();
+  if (previousToken !== token) throw new Error('本机登录状态已更新，请重新进入本机内容。');
+  const user = typeof identity.user === 'string' ? identity.user : identity.employee?.id;
+  if (typeof user !== 'string' || user === '') throw new Error('员工身份信息不完整。');
+  return { user, token };
+}
+
+function launchLocalRuntime({ user, token }, signal) {
+  signal.throwIfAborted();
+  const storageKey = crypto.createHash('sha256').update(user).digest('hex');
+  const dataRoot = path.join(app.getPath('userData'), 'local-runtime', storageKey);
+  const { root, cli, certificate } = runtimePaths();
+  if (!fs.existsSync(cli)) throw new Error('本机运行时组件缺失，请重新安装客户端。');
+  if (!fs.existsSync(certificate)) throw new Error('网关证书组件缺失，请重新安装客户端。');
+  fs.mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
+  const localWorkspace = path.join(dataRoot, LOCAL_WORKSPACE_DIRECTORY);
+  fs.mkdirSync(localWorkspace, { recursive: true, mode: 0o700 });
+  const dshHome = path.join(dataRoot, '.dsh');
+  ensureLocalWebProfile(dshHome);
+  const child = spawn(cli, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
+    cwd: localWorkspace,
+    env: {
+      ...process.env,
+      CI: 'true',
+      NODE_ENV: 'production',
+      DSH_HOME: dshHome,
+      DEEPSEEK_API_KEY: token,
+      DEEPSEEK_BASE_URL: `${GATEWAY_URL}/qifu-model/v1`,
+      NODE_EXTRA_CA_CERTS: certificate,
+      QIFUAI_DSH_ROOT: root,
+      QIFUAI_CONTEXT_URL: `${GATEWAY_URL}/qifu/v1/personalization/context`,
+      QIFUAI_CONTEXT_TOKEN: token,
+      QIFUAI_CONTEXT_LOCAL: 'true',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  const ready = new Promise((resolve, reject) => {
+    let output = '';
+    let settled = false;
+    let initializing = false;
+    const timeout = setTimeout(() => fail(new Error('本机运行时启动超时。')), 30_000);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.stdout.off('data', onData);
+      child.stderr.off('data', onData);
+      child.off('error', fail);
+      signal.removeEventListener('abort', aborted);
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const aborted = () => fail(signal.reason);
+    const onData = (chunk) => {
+      if (settled) return;
+      output = `${output}${String(chunk)}`.slice(-MAX_STARTUP_OUTPUT);
+      const match = READY_PATTERN.exec(output);
+      if (!match || initializing) return;
+      initializing = true;
+      let origin;
+      try {
+        origin = validateRuntimeOrigin(match[1]);
+      } catch (error) {
+        fail(error);
+        return;
+      }
+      void (async () => {
+        const cookie = await exchangeDshToken(origin, match[2]);
+        signal.throwIfAborted();
+        await ensureEmployeeLocalWorkspace(origin, cookie, localWorkspace);
+        signal.throwIfAborted();
+        await session.defaultSession.cookies.set(localRuntimeCookie(origin, cookie));
+        signal.throwIfAborted();
         if (settled) return;
         settled = true;
+        output = '';
         cleanup();
-        child.kill('SIGTERM');
-        reject(error instanceof Error ? error : new Error(String(error)));
-      };
-      const onData = (chunk) => {
-        if (settled) return;
-        output = `${output}${String(chunk)}`.slice(-MAX_STARTUP_OUTPUT);
-        const match = READY_PATTERN.exec(output);
-        if (!match || initializing) return;
-        initializing = true;
-        let origin;
-        try {
-          origin = validateRuntimeOrigin(match[1]);
-        } catch (error) {
-          fail(error);
-          return;
-        }
-        void (async () => {
-          const cookie = await exchangeDshToken(origin, match[2]);
-          await ensureEmployeeLocalWorkspace(origin, cookie, localWorkspace);
-          await session.defaultSession.cookies.set(localRuntimeCookie(origin, cookie));
-          if (settled) return;
-          settled = true;
-          output = '';
-          cleanup();
-          child.stdout.resume();
-          child.stderr.resume();
-          resolve({ child, origin });
-        })().catch(fail);
-      };
-      child.stdout.on('data', onData);
-      child.stderr.on('data', onData);
-      child.once('error', fail);
-      child.once('exit', (code, signal) => {
-        if (!settled) fail(new Error(`本机运行时启动失败（${String(code ?? signal)}）。`));
-      });
+        child.stdout.resume();
+        child.stderr.resume();
+        resolve({ child, origin });
+      })().catch(fail);
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    child.once('error', fail);
+    signal.addEventListener('abort', aborted, { once: true });
+    child.once('exit', (code, signal) => {
+      if (!settled) fail(new Error(`本机运行时启动失败（${String(code ?? signal)}）。`));
     });
-    runtime.child.once('exit', () => {
-      if (localRuntime === runtime) localRuntime = undefined;
-      if (runtimeMode === 'local') void showLogin('本机运行时已停止，请重新登录。');
-    });
-    localRuntime = runtime;
-    return runtime;
-  })().finally(() => { localRuntimeStarting = undefined; });
-  return localRuntimeStarting;
+  });
+  return { child, ready };
 }
 
 async function switchRuntime(target) {
   if (target !== 'local' && target !== 'cloud') throw new Error('运行区域不正确。');
-  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+  const window = mainWindow;
+  if (!window || window.isDestroyed()) return { ok: false };
   if (target === 'cloud') {
     runtimeMode = 'cloud';
-    await mainWindow.loadURL(GATEWAY_URL);
+    await window.loadURL(GATEWAY_URL);
     return { ok: true };
   }
-  const runtime = await startLocalRuntime();
+  const runtime = await localRuntimeOwner.get();
+  if (mainWindow !== window || window.isDestroyed() || localRuntimeOwner.current !== runtime) {
+    throw new Error('本机登录状态已更新，请重新进入本机内容。');
+  }
   runtimeMode = 'local';
-  await mainWindow.loadURL(runtime.origin.href);
+  await window.loadURL(runtime.origin.href);
   return { ok: true };
 }
 
@@ -432,6 +447,7 @@ async function syncFile() {
 }
 
 async function syncSession(sessionId, title) {
+  const localRuntime = localRuntimeOwner.current;
   if (runtimeMode !== 'local' || !localRuntime) throw new Error('请先进入本机内容并打开一个会话。');
   if (typeof sessionId !== 'string' || sessionId === '') throw new Error('请先选择需要同步的本机会话。');
   const exportUrl = new URL('/api/session.export', localRuntime.origin);
@@ -562,7 +578,7 @@ ipcMain.handle('desktop:pick-directory', (event) => pickLocalDirectory(
     assertAppSender(event);
     return {
       mode: runtimeMode,
-      runtimeOrigin: localRuntime?.origin,
+      runtimeOrigin: localRuntimeOwner.current?.origin,
       senderUrl: event.senderFrame.url,
     };
   },
@@ -612,8 +628,15 @@ app.on('activate', () => {
   }
 });
 
-app.on('before-quit', () => {
-  if (localRuntime?.child.exitCode === null) localRuntime.child.kill('SIGTERM');
+let retiringForQuit;
+let retiredForQuit = false;
+app.on('before-quit', (event) => {
+  if (retiredForQuit) return;
+  event.preventDefault();
+  retiringForQuit ??= localRuntimeOwner.retire().then(() => {
+    retiredForQuit = true;
+    app.quit();
+  }, () => app.exit(1));
 });
 
 app.on('window-all-closed', () => {

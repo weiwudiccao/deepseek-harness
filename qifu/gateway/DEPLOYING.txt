@@ -6,3 +6,4 @@
 4. 更新后执行 systemctl daemon-reload、restart，并核服务 MainPID、启动时间、/healthz、未认证 401、证书指纹、员工运行时中的“云端工作区”自动注册，以及画像/记忆上下文接口仍按员工会话隔离。
 5. 客户端固定证书更新必须与网关证书切换作为同一受控发布，保留旧版回滚路径。
 6. 模型代理转发 Fetch 已解压的响应体时，不转发上游 content-encoding 和 content-length；验收必须包含真实 stream:true 请求完整读到 [DONE]，非流式 JSON 成功不足以证明流式代理可用。
+7. 网页搜索入口为 POST /qifu-model/v1/messages，沿用员工鉴权与模型并发限制。QIFU_GATEWAY_SEARCH_ORIGIN 独立配置 Anthropic Messages 上游；网关重建 Bearer 与 x-api-key 两种认证头，真实模型密钥只在服务器读取。验收需拿到可引用搜索来源，不以 HTTP 200 或普通文本答复代替。

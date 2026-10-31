@@ -399,3 +399,236 @@ for (const [encoding, compress] of [['gzip', gzipSync], ['br', brotliCompressSyn
     assert.equal(response.headers.get('x-request-id'), 'compressed-stream')
   })
 }
+
+async function authenticatedModelGateway(context, options) {
+  const gateway = createGateway({
+    authenticator: {
+      async login() {
+        return {
+          user: 'employee-search@example.com',
+          employee: { id: 'HR-EMP-SEARCH', name: '搜索员工', designation: '产品经理' },
+          cookie: 'sid=oa-search',
+        }
+      },
+      async currentUser() { return 'employee-search@example.com' },
+      async logout() {},
+    },
+    modelForwarder: createModelForwarder({
+      ...options,
+      apiKey: 'server-only-search-key',
+      allowHttp: true,
+    }),
+    modelConcurrency: 1,
+    runtimes: {
+      async get() { throw new Error('model routes must not start a cloud runtime') },
+      dispose() {},
+    },
+    secureCookies: false,
+  })
+  context.after(() => gateway.dispose())
+  const server = await listen(gateway.handleRequest)
+  context.after(server.close)
+  const login = await fetch(new URL('/auth/login', server.origin), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ account: 'employee-search', password: 'test-only-password' }),
+  })
+  const token = login.headers.get('set-cookie')?.split(';', 1)[0]?.split('=', 2)[1]
+  assert.ok(token)
+  return { origin: server.origin, token }
+}
+
+function searchRequest(token, body = '{"model":"deepseek-flash","messages":[]}') {
+  return {
+    method: 'POST',
+    redirect: 'error',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'x-api-key': token,
+      'content-type': 'application/json',
+      accept: 'application/json',
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'must-not-forward',
+      'x-employee-only': 'must-not-forward',
+      cookie: 'employee-browser-cookie=must-not-forward',
+    },
+    body,
+  }
+}
+
+test('employee search uses its independent Messages origin and only the server credential', async (context) => {
+  const chatCalls = []
+  const searchCalls = []
+  const chat = await listen(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    chatCalls.push({ url: request.url, authorization: request.headers.authorization })
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end('{"kind":"chat"}')
+  })
+  context.after(chat.close)
+  const search = await listen(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    searchCalls.push({
+      url: request.url,
+      authorization: request.headers.authorization,
+      apiKey: request.headers['x-api-key'],
+      apiVersion: request.headers['anthropic-version'],
+      contentType: request.headers['content-type'],
+      accept: request.headers.accept,
+      beta: request.headers['anthropic-beta'],
+      employeeHeader: request.headers['x-employee-only'],
+      cookie: request.headers.cookie,
+      body: Buffer.concat(chunks).toString('utf8'),
+    })
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end('{"kind":"search"}')
+  })
+  context.after(search.close)
+  const gateway = await authenticatedModelGateway(context, {
+    baseUrl: new URL('/chat/v1/', chat.origin).href,
+    searchBaseUrl: new URL('/anthropic/v1/', search.origin).href,
+  })
+  const body = '{"model":"deepseek-flash","messages":[],"tools":[{"type":"web_search_20250305","name":"web_search"}]}'
+  const response = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token, body))
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), { kind: 'search' })
+  assert.deepEqual(searchCalls, [{
+    url: '/anthropic/v1/messages',
+    authorization: 'Bearer server-only-search-key',
+    apiKey: 'server-only-search-key',
+    apiVersion: '2023-06-01',
+    contentType: 'application/json',
+    accept: 'application/json',
+    beta: undefined,
+    employeeHeader: undefined,
+    cookie: undefined,
+    body,
+  }])
+  assert.ok(!JSON.stringify(searchCalls).includes(gateway.token))
+  assert.equal(chatCalls.length, 0)
+  const chatResponse = await fetch(new URL('/qifu-model/v1/chat/completions', gateway.origin), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${gateway.token}`, 'content-type': 'application/json' },
+    body: '{"model":"deepseek-flash","messages":[]}',
+  })
+  assert.equal(chatResponse.status, 200)
+  assert.deepEqual(await chatResponse.json(), { kind: 'chat' })
+  assert.deepEqual(chatCalls, [{ url: '/chat/v1/chat/completions', authorization: 'Bearer server-only-search-key' }])
+})
+
+test('search rejects missing employee authentication and routes outside the Messages allowlist', async (context) => {
+  let upstreamCalls = 0
+  const upstream = await listen((request, response) => {
+    upstreamCalls += 1
+    request.resume()
+    response.end('{}')
+  })
+  context.after(upstream.close)
+  const gateway = await authenticatedModelGateway(context, { baseUrl: upstream.origin.href, searchBaseUrl: upstream.origin.href })
+  const unauthenticated = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), {
+    method: 'POST', body: '{}',
+  })
+  assert.equal(unauthenticated.status, 401)
+  await unauthenticated.arrayBuffer()
+  for (const [method, path] of [['GET', 'messages'], ['POST', 'messages/extra'], ['POST', 'admin']]) {
+    const response = await fetch(new URL(`/qifu-model/v1/${path}`, gateway.origin), {
+      method,
+      headers: { authorization: `Bearer ${gateway.token}` },
+      ...(method === 'POST' ? { body: '{}' } : {}),
+    })
+    assert.equal(response.status, 404)
+    await response.arrayBuffer()
+  }
+  assert.equal(upstreamCalls, 0)
+})
+
+test('search without an explicit Messages upstream never falls back to the chat origin', async (context) => {
+  let chatCalls = 0
+  const chat = await listen((request, response) => {
+    chatCalls += 1
+    request.resume()
+    response.end('{}')
+  })
+  context.after(chat.close)
+  const gateway = await authenticatedModelGateway(context, { baseUrl: chat.origin.href })
+  const response = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token))
+  assert.equal(response.status, 503)
+  await response.arrayBuffer()
+  assert.equal(chatCalls, 0)
+})
+
+for (const [encoding, compress] of [['gzip', gzipSync], ['br', brotliCompressSync]]) {
+  test(`search forwarding decodes ${encoding}-compressed Messages JSON once`, async (context) => {
+    const payload = JSON.stringify({ content: [{ type: 'web_search_tool_result', content: [{ title: 'Result', url: 'https://example.com/' }] }] })
+    const compressed = compress(Buffer.from(payload))
+    const upstream = await listen((request, response) => {
+      request.resume()
+      response.writeHead(200, {
+        'content-type': 'application/json',
+        'content-encoding': encoding,
+        'content-length': String(compressed.length),
+      })
+      response.end(compressed)
+    })
+    context.after(upstream.close)
+    const gateway = await authenticatedModelGateway(context, { baseUrl: upstream.origin.href, searchBaseUrl: upstream.origin.href })
+    const response = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token))
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), payload)
+    assert.equal(response.headers.get('content-encoding'), null)
+    assert.equal(response.headers.get('content-length'), null)
+  })
+}
+
+test('search redirects never contact their target with employee or model credentials', async (context) => {
+  let targetCalls = 0
+  const target = await listen((request, response) => {
+    targetCalls += 1
+    request.resume()
+    response.end('{}')
+  })
+  context.after(target.close)
+  const upstream = await listen((request, response) => {
+    request.resume()
+    response.writeHead(307, { location: new URL('/messages', target.origin).href })
+    response.end()
+  })
+  context.after(upstream.close)
+  const gateway = await authenticatedModelGateway(context, { baseUrl: upstream.origin.href, searchBaseUrl: upstream.origin.href })
+  await assert.rejects(fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token)))
+  assert.equal(targetCalls, 0)
+})
+
+test('search shares the employee model concurrency limit until its response finishes', async (context) => {
+  let release
+  const released = new Promise(resolve => { release = resolve })
+  let upstreamCalls = 0
+  const upstream = await listen(async (request, response) => {
+    request.resume()
+    upstreamCalls += 1
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.write('{"complete":')
+    if (upstreamCalls === 1) await released
+    response.end('true}')
+  })
+  context.after(upstream.close)
+  const gateway = await authenticatedModelGateway(context, { baseUrl: upstream.origin.href, searchBaseUrl: upstream.origin.href })
+  try {
+    const first = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token))
+    assert.equal(first.status, 200)
+    const denied = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token))
+    assert.equal(denied.status, 429)
+    await denied.arrayBuffer()
+    release()
+    assert.deepEqual(await first.json(), { complete: true })
+    const next = await fetch(new URL('/qifu-model/v1/messages', gateway.origin), searchRequest(gateway.token))
+    assert.equal(next.status, 200)
+    assert.deepEqual(await next.json(), { complete: true })
+    assert.equal(upstreamCalls, 2)
+  } finally {
+    release()
+  }
+})

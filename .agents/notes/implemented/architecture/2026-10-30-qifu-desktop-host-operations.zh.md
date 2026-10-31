@@ -16,6 +16,8 @@ Electron 预加载层向原生目录流程消费者提供目录选择能力。�
 
 模型网关转发 Fetch 提供的响应体，并从上游响应头中移除 content-encoding 与 content-length。Fetch 已经解压压缩字节，这两个字段不再描述实际转发的表示。认证、证书锁定、模型凭据和其余响应头过滤规则继续由既有实现负责。
 
+聊天与原生网页搜索使用不同的运行时端点变量。企福的两种运行时都把 DEEPSEEK_BASE_URL 与 DEEPSEEK_SEARCH_BASE_URL 指向员工认证的 /qifu-model/v1 网关。messages 路由使用独立配置的 Anthropic 上游，并把 Bearer 与 x-api-key 两种凭据都替换为服务器持有的密钥。未配置搜索上游时直接报错，不回退到聊天地址。搜索验收要求结构化、可引用的来源，不能只检查 HTTP 200。
+
 ## Alternatives considered
 
 **通过 SEA 可执行程序启动对话框脚本。** 内置引导程序选择 DSH 应用入口，而不是任意脚本参数。该子进程因此退出，无法发送对话框结果。

@@ -52,6 +52,7 @@ const gateway = createGateway({
   }),
   modelForwarder: createModelForwarder({
     baseUrl: process.env.QIFU_GATEWAY_MODEL_ORIGIN ?? 'https://api.deepseek.com/v1',
+    searchBaseUrl: process.env.QIFU_GATEWAY_SEARCH_ORIGIN ?? 'https://api.deepseek.com/anthropic/v1',
     apiKey: modelApiKey,
   }),
   runtimes,

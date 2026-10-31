@@ -190,20 +190,27 @@ function validateModelBaseUrl(value, allowHttp) {
 
 function allowedModelRequest(method, pathname) {
   if (method === 'POST' && pathname === 'chat/completions') return true
+  if (method === 'POST' && pathname === 'messages') return true
   if ((method === 'POST' || method === 'GET') && pathname === 'files') return true
   if ((method === 'GET' || method === 'DELETE') && /^files\/[^/]+$/u.test(pathname)) return true
   return false
 }
 
 /** Proxy the authenticated local runtime to the server-owned model credential. */
-export function createModelForwarder({ baseUrl, apiKey, fetchImpl = fetch, allowHttp = false }) {
+export function createModelForwarder({ baseUrl, searchBaseUrl, apiKey, fetchImpl = fetch, allowHttp = false }) {
   if (typeof apiKey !== 'string' || apiKey.trim() === '') throw new Error('model API key is required')
   const origin = validateModelBaseUrl(baseUrl, allowHttp)
+  const searchOrigin = searchBaseUrl === undefined ? undefined : validateModelBaseUrl(searchBaseUrl, allowHttp)
   return async function forwardModel(request, response, gatewayUrl) {
     const method = request.method ?? 'GET'
     const pathname = gatewayUrl.pathname.slice(MODEL_PREFIX.length)
     if (!allowedModelRequest(method, pathname)) {
       json(response, 404, { ok: false, message: '模型接口不存在。' })
+      return
+    }
+    const isSearch = pathname === 'messages'
+    if (isSearch && searchOrigin === undefined) {
+      json(response, 503, { ok: false, message: '网页搜索服务尚未配置。' })
       return
     }
     let body
@@ -215,13 +222,19 @@ export function createModelForwarder({ baseUrl, apiKey, fetchImpl = fetch, allow
       json(response, 413, { ok: false, message: '模型请求内容过大。' })
       return
     }
-    const target = new URL(`${pathname}${gatewayUrl.search}`, origin)
+    const target = new URL(`${pathname}${gatewayUrl.search}`, isSearch ? searchOrigin : origin)
     const headers = new Headers({
       accept: request.headers.accept ?? 'application/json',
       authorization: `Bearer ${apiKey}`,
     })
     if (typeof request.headers['content-type'] === 'string') {
       headers.set('content-type', request.headers['content-type'])
+    }
+    if (isSearch) {
+      headers.set('x-api-key', apiKey)
+      if (typeof request.headers['anthropic-version'] === 'string') {
+        headers.set('anthropic-version', request.headers['anthropic-version'])
+      }
     }
     let upstream
     try {

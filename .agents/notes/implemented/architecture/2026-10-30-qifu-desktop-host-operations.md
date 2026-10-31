@@ -16,6 +16,8 @@ Each local runtime belongs to one employee id and one gateway login-token genera
 
 The model gateway forwards the body exposed by Fetch and removes content-encoding and content-length from upstream response headers. Fetch has already decoded compressed bytes, so those two fields no longer describe the forwarded representation. Authentication, certificate pinning, model credentials, and the remaining response-header filters retain their existing owners.
 
+Chat and native web search use separate runtime endpoint variables. Both Qifu runtimes set DEEPSEEK_BASE_URL and DEEPSEEK_SEARCH_BASE_URL to the employee-authenticated /qifu-model/v1 gateway. The messages route uses an independently configured Anthropic upstream and replaces both Bearer and x-api-key credentials with the server-owned key. An absent search upstream fails instead of falling back to the chat origin. Search acceptance requires structured, citeable sources rather than HTTP 200 alone.
+
 ## Alternatives considered
 
 **Launch the dialog script through the SEA executable.** The embedded bootstrap selects the DSH application entry rather than arbitrary script arguments. The resulting child exits without sending the dialog result.

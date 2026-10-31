@@ -58,7 +58,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: QifuAI-Brain-Server-Client-0.1.2-alpha.10-windows-x64
-          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.10-windows-x64.exe
+          name: QifuAI-Brain-Server-Client-0.1.2-alpha.11-windows-x64
+          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.11-windows-x64.exe
           if-no-files-found: error
           retention-days: 30

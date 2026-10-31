@@ -12,11 +12,13 @@ function desktop(context, responses, tokens = ['session-a']) {
   const handlers = new Map();
   const appEvents = new Map();
   const calls = [];
+  const spawns = [];
   const windows = [];
   const timers = [];
   const runtime = { child: { exitCode: null }, origin: new URL('http://127.0.0.1:43120/') };
   const owner = { current: runtime, retire: async () => { calls.push('retire'); owner.current = undefined; } };
   let authorization;
+  let launch;
   class Window {
     static getAllWindows() { return windows.filter(window => !window.destroyed); }
     constructor() {
@@ -47,14 +49,18 @@ function desktop(context, responses, tokens = ['session-a']) {
   };
   const filename = resolve(__dirname, '../src/main.cjs');
   runInNewContext(readFileSync(filename, 'utf8'), {
-    require: name => name === 'electron' ? electron : name === './local-runtime-support.cjs'
-      ? { ...support, createLocalRuntimeOwner: options => { authorization = options.authorize; return owner; } }
+    require: name => name === 'electron' ? electron : name === 'node:fs'
+      ? { ...require(name), existsSync: () => true }
+      : name === 'node:child_process'
+        ? { spawn: (command, args, options) => { spawns.push({ command, args, options }); throw new Error('test-only captured launch'); } }
+        : name === './local-runtime-support.cjs'
+      ? { ...support, createLocalRuntimeOwner: options => { authorization = options.authorize; launch = options.launch; return owner; } }
       : require(name),
     __dirname: resolve(__dirname, '../src'),
     process, URL, Buffer,
     setTimeout: callback => { timers.push(callback); return timers.length; },
   }, { filename });
-  return { owner, runtime, calls, authorization, appEvents, windows, timers,
+  return { owner, runtime, calls, authorization, launch: (...args) => launch(...args), spawns, appEvents, windows, timers,
     switchRuntime: target => handlers.get('desktop:switch-runtime')({ senderFrame: { url: 'https://47.106.208.2:3443/' } }, target),
     login: () => {
       if (Window.getAllWindows().length === 0) appEvents.get('activate')();
@@ -64,6 +70,21 @@ function desktop(context, responses, tokens = ['session-a']) {
     },
   };
 }
+
+test('local runtime routes chat and search through the employee gateway', context => {
+  const app = desktop(context, []);
+  const controller = new AbortController();
+  assert.throws(
+    () => app.launch({ user: 'employee-a', token: 'employee-session-token' }, controller.signal),
+    /test-only captured launch/u,
+  );
+  assert.equal(app.spawns.length, 1);
+  const { env } = app.spawns[0].options;
+  assert.equal(env.DEEPSEEK_API_KEY, 'employee-session-token');
+  assert.equal(env.DEEPSEEK_BASE_URL, 'https://47.106.208.2:3443/qifu-model/v1');
+  assert.equal(env.DEEPSEEK_SEARCH_BASE_URL, 'https://47.106.208.2:3443/qifu-model/v1');
+  assert.equal(env.QIFUAI_CONTEXT_TOKEN, 'employee-session-token');
+});
 
 test('failed employee login preserves the current local runtime', async context => {
   const app = desktop(context, [new Response('{"message":"denied"}', { status: 401 })]);

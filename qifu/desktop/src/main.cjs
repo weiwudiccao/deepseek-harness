@@ -300,6 +300,7 @@ function launchLocalRuntime({ user, token }, signal) {
       DSH_HOME: dshHome,
       DEEPSEEK_API_KEY: token,
       DEEPSEEK_BASE_URL: `${GATEWAY_URL}/qifu-model/v1`,
+      DEEPSEEK_SEARCH_BASE_URL: `${GATEWAY_URL}/qifu-model/v1`,
       NODE_EXTRA_CA_CERTS: certificate,
       QIFUAI_DSH_ROOT: root,
       QIFUAI_CONTEXT_URL: `${GATEWAY_URL}/qifu/v1/personalization/context`,

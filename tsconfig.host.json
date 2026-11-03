@@ -195,6 +195,7 @@
     { "path": "./packages/feedback/command-feedback" },
     { "path": "./packages/schedule/schedule" },
     { "path": "./packages/context/qifu-account-context" },
+    { "path": "./packages/client/ui-qifu-work-surface/tsconfig.host.json" },
     { "path": "./packages/context/time-context" },
     { "path": "./packages/context/file-reference" },
     { "path": "./packages/context/file-reference-local" },

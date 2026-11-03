@@ -84,6 +84,7 @@ test('local runtime routes chat and search through the employee gateway', contex
   assert.equal(env.DEEPSEEK_BASE_URL, 'https://47.106.208.2:3443/qifu-model/v1');
   assert.equal(env.DEEPSEEK_SEARCH_BASE_URL, 'https://47.106.208.2:3443/qifu-model/v1');
   assert.equal(env.QIFUAI_CONTEXT_TOKEN, 'employee-session-token');
+  assert.equal(env.QIFUAI_OFFICE_ENABLED, 'true');
 });
 
 test('failed employee login preserves the current local runtime', async context => {

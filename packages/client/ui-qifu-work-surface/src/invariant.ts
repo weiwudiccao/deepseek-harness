@@ -9,7 +9,7 @@ export const name = 'client-ui-qifu-work-surface-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 
-/** No runtime invariant: data is validated at the gateway response boundary. */
+/** No runtime invariant: immutable Office files and gateway navigation responses are validated when read. */
 const install: InvariantInstaller = () => {}
 
 /** Register package ownership with the invariant service. */

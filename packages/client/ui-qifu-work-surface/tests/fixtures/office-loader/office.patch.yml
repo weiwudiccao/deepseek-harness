@@ -1,0 +1,32 @@
+# Exercise the shipping web bundle, replacing only the external model.
+- id: web-startup
+  disabled: true
+
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: false
+    surfaceContext: false
+    trustedHosts: []
+
+- id: agent-loop
+  config:
+    agents:
+      - id: office-main
+        provider: office-fixture
+        model: office-fixture
+        cwd: !!js process.cwd()
+
+- id: agent-default-model
+  config:
+    provider: office-fixture
+    model: office-fixture
+
+- id: session-persistence-jsonl
+  config:
+    root: './.sessions'
+    compression: none
+
+- insert:
+    - id: office-fixture-model
+      name: './office-model.host.ts'

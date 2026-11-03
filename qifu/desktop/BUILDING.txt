@@ -9,3 +9,4 @@
 7. 每次进入本机模式先验证当前员工会话；成功重新登录后退休旧令牌对应的本机进程，包含尚未完成的启动。旧进程退出不能影响当前运行时，员工数据目录不删除。
 8. 聊天和网页搜索分别注入 DEEPSEEK_BASE_URL 与 DEEPSEEK_SEARCH_BASE_URL；企福两者都指向员工网关 /qifu-model/v1，搜索不得把员工令牌直接发送到官方端点。
 9. 正式发布前必须分别完成 macOS Developer ID 公证验收和 Windows 真机安装、登录、功能、云端、本机及单项同步验收。
+10. 办公文件能力需要重新构建 SEA：包内须有办公 worker、依赖和中文字体，不能只更新 Electron 壳。格式与限制见 OFFICE-SUPPORT.txt。

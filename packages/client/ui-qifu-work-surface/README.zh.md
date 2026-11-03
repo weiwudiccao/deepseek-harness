@@ -37,7 +37,13 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'
 ```
 
-该插件不接受配置字段。网关负责功能、员工私有云端元数据、授权、传输策略和授权记录；桌面桥负责运行时切换、功能打开、本机文件选择和明确发布。
+Host 接受 `enabledEnv`（默认 `QIFUAI_OFFICE_ENABLED`）、`dshHome`、`maxDocumentBytes`（25 MiB）、`maxTextBytes`（1 MiB）、`maxDocumentsPerSession`（100）和 `maxReadLines`（2000）和 `maxConcurrentOperations`（2）；只有指定环境变量为 `true` 时才注册办公操作。网关负责功能、员工私有云端元数据、授权、传输策略和授权记录；桌面桥负责运行时切换、功能打开、本机文件选择和明确发布。
+
+### 办公文档
+
+会话输入框可导入 DOCX、PPTX、XLSX、文字 PDF、HTML/HTM、CSV、TXT、Markdown、RTF、ODT、ODP 和 ODS。模型通过 `office_read` 读取选中文档，并通过 `office_create` 生成这些现代格式。文件保存在当前员工运行时的 `DSH_HOME` 中，以会话和随机文档 ID 隔离。产物不覆盖原件或模型指定的工作区路径；输入框提供鉴权下载列表。本机导入保留在本机运行时，提取内容仍可能随员工模型请求发送。
+
+解析和生成在可终止的 worker 中执行，不继承员工环境凭据，并限制字节、时间、堆内存、XML、压缩包和文本大小。远程资源、文档宏、HTML 脚本和 OCR 均停用。PDF 生成使用随包提供、采用 SIL Open Font License 的 Noto Sans SC 字体，不依赖系统字体。文件名选择受支持的解析器；损坏或加密的内容会报错，不会作为二进制直接发送模型。
 
 ### 失败行为
 
@@ -81,11 +87,19 @@ bootstrap 失败时，该包绝不替换为静态完整功能目录。它显示�
 <a id="model-experience"></a>
 ## 模型体验
 
-无；该包是浏览器端员工导航和授权展示，不注册任何模型可见内容。
+### 办公文档工具
+
+#### 模型看到的内容
+
+启用后，`office_read` 返回调用会话中导入或生成文档的有界行窗口。`office_create` 接受文件名、Markdown 内容和输出格式，返回新文档的 ID、大小和摘要。文档引用加入员工草稿；提取文本和产物元数据通过持久化工具结果进入上下文。文档文字属于数据，不作为部署指令。
+
+#### Token 影响
+
+启用的工具加入固定定义和办公指引。读取结果和完整的 Markdown 创建参数会增加对话 token；该包不直接调用模型。
 
 #### KV 缓存影响
 
-无；该包既不组装也不发送 provider 请求。
+相同配置下工具定义保持稳定，结果追加在可复用的请求前缀之后。
 
 ## 已知限制与延期工作
 
@@ -95,7 +109,7 @@ bootstrap 失败时，该包绝不替换为静态完整功能目录。它显示�
 
 - **仅限桌面端**——缺少 `qifuDesktop` 预加载桥时，该包会有意保持停用。
 - **云端列表是近期个人投影**——首个界面最多读取 50 条个人 Conversation、Session、Presentation 或 File Work Item，没有浏览器分页或搜索控件。
-- **当前切片只支持单向发布**——桌面桥发布单个本机文件或单个本机会话快照；尚未公开云端下载到本机和后台同步。
+- **办公输出为新文档**——内容修改不保证保留任意原件的排版、动画、宏、公式和批注。旧二进制 DOC/XLS/PPT 和扫描 PDF 需要预先转换或 OCR；不提供后台同步。
 - **授权展示不会注入上下文**——OA 和运行时 provider 必须在组装模型输入时落实每项选择；该浏览器包只读取和写入权威授权记录。
 
 <a id="dev-note"></a>

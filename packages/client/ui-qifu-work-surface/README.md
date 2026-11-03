@@ -37,7 +37,13 @@ Choose this package for the certificate-pinned Qifu desktop deployment that has 
 - name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'
 ```
 
-The plugin accepts no configuration fields. The gateway owns features, employee-private cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
+The Host accepts `enabledEnv` (default `QIFUAI_OFFICE_ENABLED`), `dshHome`, `maxDocumentBytes` (25 MiB), `maxTextBytes` (1 MiB), `maxDocumentsPerSession` (100), and `maxReadLines` (2000), and `maxConcurrentOperations` (2). Office operations register only when the selected environment variable is `true`. The gateway owns features, employee-private cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
+
+### Office documents
+
+The session composer imports DOCX, PPTX, XLSX, text PDF, HTML/HTM, CSV, TXT, Markdown, RTF, ODT, ODP, and ODS. Models read selected documents with `office_read` and generate those modern formats with `office_create`. Files live below the runtime's employee-specific `DSH_HOME`, keyed by Session and random document id. An output never overwrites an original or a model-supplied workspace path; the composer lists authenticated downloads. A local import stays on the local runtime; extracted content may still travel with the employee's model request.
+
+Parsing and generation run in terminable workers without employee environment credentials, with byte, time, heap, XML, archive, and text limits. Remote assets, document macros, HTML scripts, and OCR are disabled. PDF generation includes the bundled SIL Open Font License Noto Sans SC font, avoiding a system-font prerequisite. A file name selects a supported parser; malformed or encrypted content fails instead of being sent as binary model input.
 
 ### Failure behavior
 
@@ -81,11 +87,19 @@ These pages describe the generic seats and the Qifu deployment decisions that th
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the package is a browser-side employee navigation and consent presentation that registers nothing model-facing.
+### Office document tools
+
+#### What the model sees
+
+When enabled, `office_read` returns a bounded line window from an imported or generated document belonging to the calling Session. `office_create` accepts a filename, Markdown content, and output format, returning a new document's id, size, and digest. References enter the employee's draft; extracted text and output metadata enter context through logged tool results. Document text is data, never deployment instructions.
+
+#### Token effect
+
+The enabled tools add stable definitions and document guidance. Read results and complete Markdown creation arguments increase conversation tokens; the package does not call a model directly.
 
 #### KV Cache effect
 
-None; the package neither assembles nor sends a provider request.
+Tool definitions remain stable for a configuration. Results append to the conversation after the reusable request prefix.
 
 ## Known Limitations and Deferred Work
 
@@ -95,7 +109,7 @@ These limits distinguish the shipped browser surface from responsibilities owned
 
 - **Desktop only** — the package deliberately stays inactive when the `qifuDesktop` preload bridge is absent.
 - **The cloud list is a recent personal projection** — the first surface reads at most 50 personal Conversation, Session, Presentation, or File Work Items and has no browser pagination or search control.
-- **Publication is one-way in this slice** — the bridge publishes one local file or one local Session snapshot; cloud-to-local download and background synchronization are not exposed.
+- **Office output is a new document** — content changes do not preserve arbitrary original layout, animations, macros, formulas, or comments. Binary DOC/XLS/PPT and scanned PDFs require prior conversion or OCR. Background synchronization is not exposed.
 - **Consent presentation does not inject context** — OA and runtime providers must enforce each choice when they assemble model input; this browser package only reads and writes the authoritative consent record.
 
 <a id="dev-note"></a>

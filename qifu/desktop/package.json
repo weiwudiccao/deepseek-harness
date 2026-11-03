@@ -1,6 +1,6 @@
 {
   "name": "qifuai-brain-server-client",
-  "version": "0.1.2-alpha.11",
+  "version": "0.1.2-alpha.12",
   "private": true,
   "description": "Employee-authenticated QifuAI Brain client with isolated cloud and local work surfaces.",
   "main": "src/main.cjs",

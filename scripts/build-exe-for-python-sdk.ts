@@ -61,6 +61,8 @@ const ASSET_GLOBS = [
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/**/*',
   // skill-badge resolves both Markdown and image resources through import.meta.url.
   'node_modules/@deepseek-ai/dsh-skill-badge/assets/**/*',
+  // Office PDF output carries its own redistributable CJK font.
+  'node_modules/@deepseek-ai/dsh-client-ui-qifu-work-surface/lib/assets/**/*',
 ]
 
 const PLATFORMS = ['linux', 'macos', 'win'] as const

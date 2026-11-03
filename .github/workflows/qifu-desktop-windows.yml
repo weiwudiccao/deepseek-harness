@@ -14,6 +14,8 @@ on:
       - packages/client/ui-employee-identity/**
       - packages/client/ui-qifu-work-surface/**
       - packages/client/ui-sidebar/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - python/sdk-runtime/**
       - qifu/desktop/**
       - scripts/build-exe-for-python-sdk*
@@ -48,6 +50,9 @@ jobs:
       - name: Build Windows DSH runtime
         run: node --import tsx scripts/build-exe-for-python-sdk.ts --skip-build --targets=node24-win-x64
 
+      - name: Verify packaged Office runtime
+        run: node qifu/desktop/scripts/check-office-runtime.mjs --runtimePath "${{ github.workspace }}/dist-exe/deepseek-harness-sdk-runtime-win-x64.exe" --DSH_ROOT "${{ github.workspace }}/dist-exe"
+
       - name: Install desktop packaging dependencies
         working-directory: qifu/desktop
         run: npm ci
@@ -58,7 +63,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: QifuAI-Brain-Server-Client-0.1.2-alpha.11-windows-x64
-          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.11-windows-x64.exe
+          name: QifuAI-Brain-Server-Client-0.1.2-alpha.12-windows-x64
+          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.12-windows-x64.exe
           if-no-files-found: error
           retention-days: 30

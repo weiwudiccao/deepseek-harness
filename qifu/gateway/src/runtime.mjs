@@ -237,6 +237,7 @@ export function createDshRuntimeProvider(options) {
           QIFUAI_CONTEXT_URL: `${contextOrigin}/qifu/v1/personalization/context`,
           QIFUAI_CONTEXT_TOKEN: sessionToken,
           QIFUAI_CONTEXT_LOCAL: 'false',
+          QIFUAI_OFFICE_ENABLED: 'true',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       })

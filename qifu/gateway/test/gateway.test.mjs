@@ -632,3 +632,127 @@ test('search shares the employee model concurrency limit until its response fini
     release()
   }
 })
+
+async function authenticatedRuntimeGateway(context, runtime, handle = handler => handler) {
+  const gateway = createGateway({
+    authenticator: {
+      async login() { return { user: 'proxy-fixture', employee: { id: 'proxy-fixture', name: 'Fixture', designation: '' }, cookie: 'fixture-oa' } },
+      async currentUser() { return 'proxy-fixture' },
+      async logout() {},
+    },
+    runtimes: { async get() { return runtime }, dispose() {} },
+    secureCookies: false,
+  })
+  context.after(() => gateway.dispose())
+  const server = await listen(handle(gateway.handleRequest))
+  context.after(server.close)
+  const login = await fetch(new URL('/auth/login', server.origin), {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ account: 'proxy-fixture', password: 'fixture-password' }),
+  })
+  await login.arrayBuffer()
+  const cookie = login.headers.get('set-cookie')?.split(';', 1)[0]
+  assert.ok(cookie)
+  return { origin: server.origin, cookie }
+}
+
+test('cloud Office cancellation closes the employee runtime request before publication', async (context) => {
+  let upstreamResponse
+  let entered
+  let closed
+  const reached = new Promise(resolve => { entered = resolve })
+  const upstreamClosed = new Promise(resolve => { closed = resolve })
+  const runtime = await listen((request, response) => {
+    upstreamResponse = response
+    request.resume()
+    request.once('end', () => {
+      response.once('close', () => { closed(!response.writableEnded) })
+      entered()
+    })
+  })
+  context.after(runtime.close)
+  const gateway = await authenticatedRuntimeGateway(context, { origin: runtime.origin, cookie: 'runtime-cookie', invalidate() {} })
+  const controller = new AbortController()
+  let deadline
+  const result = fetch(new URL('/qifu-office/import', gateway.origin), {
+    method: 'POST', headers: { cookie: gateway.cookie, 'content-type': 'application/json' }, body: '{}', signal: controller.signal,
+  })
+  try {
+    await reached
+    controller.abort()
+    await assert.rejects(result, { name: 'AbortError' })
+    const prematurelyClosed = await Promise.race([
+      upstreamClosed,
+      new Promise(resolve => { deadline = setTimeout(() => resolve(false), 1500) }),
+    ])
+    assert.equal(prematurelyClosed, true, 'cancelled cloud import must abort its runtime before it can publish')
+  } finally {
+    clearTimeout(deadline)
+    controller.abort()
+    upstreamResponse?.end('fixture operation released')
+  }
+})
+
+test('cloud proxy streams through normal request completion and releases cancellation listeners', async (context) => {
+  let release
+  const released = new Promise(resolve => { release = resolve })
+  let prematurelyClosed = false
+  const runtime = await listen(async (request, response) => {
+    request.resume()
+    response.once('close', () => { prematurelyClosed = !response.writableEnded })
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'set-cookie': 'must-not-escape=1' })
+    response.write('data: first\n\n')
+    await released
+    response.end('data: done\n\n')
+  })
+  context.after(runtime.close)
+  let gatewayRequest
+  let gatewayResponse
+  let baseline
+  const gateway = await authenticatedRuntimeGateway(context, { origin: runtime.origin, cookie: 'runtime-cookie', invalidate() {} }, handler => (request, response) => {
+    if (request.url === '/events') {
+      gatewayRequest = request; gatewayResponse = response
+      baseline = { aborted: request.listenerCount('aborted'), finish: response.listenerCount('finish'), close: response.listenerCount('close') }
+    }
+    return handler(request, response)
+  })
+  try {
+    const response = await fetch(new URL('/events', gateway.origin), { headers: { cookie: gateway.cookie } })
+    assert.equal(response.headers.get('set-cookie'), null)
+    release()
+    assert.equal(await response.text(), 'data: first\n\ndata: done\n\n')
+    assert.equal(prematurelyClosed, false)
+    assert.equal(gatewayRequest.listenerCount('aborted'), baseline.aborted)
+    assert.equal(gatewayResponse.listenerCount('finish'), baseline.finish)
+    assert.equal(gatewayResponse.listenerCount('close'), baseline.close)
+  } finally {
+    release()
+  }
+})
+
+test('cloud proxy ends a partially streamed response when its runtime disconnects', async (context) => {
+  let upstreamResponse
+  const runtime = await listen((request, response) => {
+    request.resume()
+    upstreamResponse = response
+    response.writeHead(200, { 'content-type': 'text/event-stream' })
+    response.write('data: first\n\n')
+  })
+  context.after(runtime.close)
+  const gateway = await authenticatedRuntimeGateway(context, { origin: runtime.origin, cookie: 'runtime-cookie', invalidate() {} })
+  let deadline
+  const controller = new AbortController()
+  try {
+    const response = await fetch(new URL('/events', gateway.origin), { headers: { cookie: gateway.cookie }, signal: controller.signal })
+    const body = response.text()
+    upstreamResponse.destroy()
+    await assert.rejects(Promise.race([
+      body,
+      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('fixture response stayed open')), 1500) }),
+    ]), error => error.message !== 'fixture response stayed open')
+  } finally {
+    clearTimeout(deadline)
+    controller.abort()
+    upstreamResponse?.end()
+  }
+})

@@ -177,6 +177,7 @@ test('one employee reuses one runtime while different employees get separate hom
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_URL, 'https://gateway.example/qifu/v1/personalization/context')
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_TOKEN, 'session-token-a')
   assert.equal(spawns[0].options.env.QIFUAI_CONTEXT_LOCAL, 'false')
+  assert.equal(spawns[0].options.env.QIFUAI_OFFICE_ENABLED, 'true')
   assert.equal(spawns[0].options.env.NODE_EXTRA_CA_CERTS, '/etc/qifuaigent-gateway/tls.crt')
 
   first.invalidate()

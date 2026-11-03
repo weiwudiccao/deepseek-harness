@@ -306,6 +306,7 @@ function launchLocalRuntime({ user, token }, signal) {
       QIFUAI_CONTEXT_URL: `${GATEWAY_URL}/qifu/v1/personalization/context`,
       QIFUAI_CONTEXT_TOKEN: token,
       QIFUAI_CONTEXT_LOCAL: 'true',
+      QIFUAI_OFFICE_ENABLED: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,

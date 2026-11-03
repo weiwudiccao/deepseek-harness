@@ -7,3 +7,5 @@
 5. 客户端固定证书更新必须与网关证书切换作为同一受控发布，保留旧版回滚路径。
 6. 模型代理转发 Fetch 已解压的响应体时，不转发上游 content-encoding 和 content-length；验收必须包含真实 stream:true 请求完整读到 [DONE]，非流式 JSON 成功不足以证明流式代理可用。
 7. 网页搜索入口为 POST /qifu-model/v1/messages，沿用员工鉴权与模型并发限制。QIFU_GATEWAY_SEARCH_ORIGIN 独立配置 Anthropic Messages 上游；网关重建 Bearer 与 x-api-key 两种认证头，真实模型密钥只在服务器读取。验收需拿到可引用搜索来源，不以 HTTP 200 或普通文本答复代替。
+
+办公文件运行时：员工进程启用 QIFUAI_OFFICE_ENABLED=true；部署 ui-qifu-work-surface 的 Host/client/worker 与对应依赖、中文字体。仅升级桌面壳不会更新云端处理能力。代理必须在客户端取消后关闭上游，防止后台继续解析。

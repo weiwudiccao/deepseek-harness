@@ -358,6 +358,32 @@ export interface Config {
 
 来源：[`packages/client/hmr/src/index.ts:31`](../packages/client/hmr/src/index.ts)
 
+<a id="deepseek-aidsh-client-ui-qifu-work-surface"></a>
+
+## `@deepseek-ai/dsh-client-ui-qifu-work-surface`
+
+```ts config-catalog
+/** Qifu-specific document processing opt-in and deployment limits. */
+export interface Config {
+  /** Environment variable that enables Office operations only when it equals true. */
+  readonly enabledEnv?: string
+  /** Employee-specific Harness home; omitted follows DSH_HOME and then ~/.dsh. */
+  readonly dshHome?: string
+  /** Accepted raw bytes per document, at most the 25 MiB client ceiling. */
+  readonly maxDocumentBytes?: number
+  /** Maximum UTF-8 bytes of extracted text or Markdown supplied for generation. */
+  readonly maxTextBytes?: number
+  /** Maximum immutable original and generated documents retained for one Session. */
+  readonly maxDocumentsPerSession?: number
+  /** Maximum extracted text lines returned by one office_read call. */
+  readonly maxReadLines?: number
+  /** Concurrent parsing or generation operations; a full runtime rejects without queuing. */
+  readonly maxConcurrentOperations?: number
+}
+```
+
+来源：[`packages/client/ui-qifu-work-surface/src/index.ts:9`](../packages/client/ui-qifu-work-surface/src/index.ts)
+
 <a id="deepseek-aidsh-code-runtime-worker-thread"></a>
 
 ## `@deepseek-ai/dsh-code-runtime-worker-thread`
@@ -3342,7 +3368,6 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-model-selection`（[`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-permission-presets`（[`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-plan`（[`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts)）
-- `@deepseek-ai/dsh-client-ui-qifu-work-surface`（[`packages/client/ui-qifu-work-surface/src/index.ts`](../packages/client/ui-qifu-work-surface/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-reference`（[`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-renderer`（[`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-schedule`（[`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts)）

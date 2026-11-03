@@ -1,0 +1,36 @@
+{
+  "output": "已生成工作计划，文件保留在当前会话的文档列表中。",
+  "toolResults": [
+    {
+      "callId": "office-fixture-1",
+      "isError": false,
+      "value": {
+        "id": "{{document:1}}",
+        "name": "plan.txt",
+        "format": "txt",
+        "kind": "generated",
+        "bytes": 38,
+        "sha256": "2e08672207778c23bc97e3b33f2b49d57bc656724e3f2f6df37a99c141fa12ac",
+        "createdAt": "{{createdAt}}"
+      }
+    },
+    {
+      "callId": "office-fixture-2",
+      "isError": false,
+      "value": {
+        "id": "{{document:1}}",
+        "name": "plan.txt",
+        "offset": 1,
+        "limit": 20,
+        "totalLines": 2,
+        "text": "工作计划\n准备报告 复核数据"
+      }
+    }
+  ],
+  "downloadStatus": 200,
+  "downloadedText": "工作计划\n准备报告 复核数据",
+  "unauthorizedStatus": 401,
+  "imported": true,
+  "unknownSessionRejected": true,
+  "documentCount": 2
+}

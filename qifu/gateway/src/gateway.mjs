@@ -521,6 +521,21 @@ function responseHeaders(headers) {
 
 function proxyHttp(request, response, runtime) {
   const upstream = runtime.origin
+  let upstreamResponse
+  const cleanup = () => {
+    request.off('aborted', cancel)
+    response.off('close', onClose)
+    response.off('finish', cleanup)
+  }
+  const cancel = () => {
+    if (!proxy.destroyed) proxy.destroy()
+    if (upstreamResponse !== undefined && !upstreamResponse.destroyed) upstreamResponse.destroy()
+    cleanup()
+  }
+  const onClose = () => {
+    if (!response.writableEnded) cancel()
+    else cleanup()
+  }
   const proxy = httpRequest({
     hostname: upstream.hostname,
     port: upstream.port,
@@ -532,16 +547,33 @@ function proxyHttp(request, response, runtime) {
       origin: undefined,
       'sec-fetch-site': undefined,
     }),
-  }, (upstreamResponse) => {
-    if (upstreamResponse.statusCode === 401) runtime.invalidate()
-    response.writeHead(upstreamResponse.statusCode ?? 502, responseHeaders(upstreamResponse.headers))
-    upstreamResponse.pipe(response)
+  }, (received) => {
+    upstreamResponse = received
+    const failed = () => { if (!response.destroyed) response.destroy() }
+    received.once('error', failed)
+    received.once('aborted', failed)
+    received.once('close', () => {
+      received.off('error', failed)
+      received.off('aborted', failed)
+    })
+    if (response.destroyed) {
+      cancel()
+      return
+    }
+    if (received.statusCode === 401) runtime.invalidate()
+    response.writeHead(received.statusCode ?? 502, responseHeaders(received.headers))
+    received.pipe(response)
   })
   proxy.once('error', () => {
+    if (response.destroyed) return
     if (!response.headersSent) json(response, 502, { ok: false, message: '企福AI智脑服务暂时不可用。' })
     else response.destroy()
   })
-  request.pipe(proxy)
+  request.once('aborted', cancel)
+  response.once('close', onClose)
+  response.once('finish', cleanup)
+  if (response.destroyed) cancel()
+  else request.pipe(proxy)
 }
 
 function proxyUpgrade(request, socket, head, runtime) {

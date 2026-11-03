@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,7 +26,7 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function fixture(maxConcurrentOperations = 2) {
+async function fixture(maxConcurrentOperations = 2, maxDocumentBytes = 1024) {
   const root = await mkdtemp(join(tmpdir(), 'qifu-office-host-'))
   roots.push(root)
   const tools = new Map<string, ToolDefinition>()
@@ -45,7 +46,7 @@ async function fixture(maxConcurrentOperations = 2) {
     effect: (factory: () => unknown) => { removers.push(factory() as () => unknown) },
   } as unknown as Context
   installOfficeHost(ctx, {
-    dshHome: root, maxDocumentBytes: 1024, maxTextBytes: 100, maxDocumentsPerSession: 100, maxReadLines: 3, maxConcurrentOperations,
+    dshHome: root, maxDocumentBytes, maxTextBytes: 100, maxDocumentsPerSession: 100, maxReadLines: 3, maxConcurrentOperations,
   })
   return {
     ctx, tools,
@@ -114,6 +115,28 @@ describe('Qifu Office host', () => {
     expect(listed).toMatchObject({
       ok: true, value: { documents: [expect.objectContaining({ id }), expect.objectContaining({ id: generated.id })] },
     })
+  })
+
+  it('imports and downloads a 20 MiB file through canonical base64 without overflowing the decoder', async () => {
+    const f = await fixture(2, 25 * 1024 * 1024)
+    const content = Buffer.alloc(20 * 1024 * 1024, 65)
+    vi.mocked(readOffice).mockResolvedValueOnce('bounded extracted text')
+    const imported = await f.call('import', { sessionId: 'a', name: 'large.pptx', data: content.toString('base64') })
+    const id = documentId(imported)
+    expect(imported).toMatchObject({
+      ok: true, value: { document: { bytes: content.byteLength, sha256: createHash('sha256').update(content).digest('hex') } },
+    })
+    const downloaded = await f.download(`sessionId=a&documentId=${id}`)
+    expect(downloaded.status).toBe(200)
+    expect(Buffer.from(await downloaded.arrayBuffer()).equals(content)).toBe(true)
+    await f.dispose()
+  })
+
+  it.each(['AB==', 'A===', 'AA=A', 'AA==AA==', 'AAAA\n'])('rejects malformed or noncanonical base64 %j', async (data) => {
+    const f = await fixture()
+    expect(await f.call('import', { sessionId: 'a', name: 'reference.txt', data })).toMatchObject({ ok: false })
+    expect(await f.call('list', { sessionId: 'a' })).toMatchObject({ ok: true, value: { documents: [] } })
+    await f.dispose()
   })
 
   it('rejects unknown Sessions, malformed uploads, corrupt input, and oversized text before publishing', async () => {

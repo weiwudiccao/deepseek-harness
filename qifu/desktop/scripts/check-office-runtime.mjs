@@ -176,7 +176,14 @@ try {
     validated.push({ format: document.format, bytes: bytes.length, sha256: document.sha256, chineseReadBack: true });
   }
   assert.equal((await rpc('/qifu-office', 'list', { sessionId: sessionB })).documents.length, formats.length);
-  report = { officeLoaded: true, unauthenticatedStatus: 401, crossSessionDownloadStatus: 404, immutableDocumentIds: true, samples: validated.sort((a, b) => a.format.localeCompare(b.format)), fakeModelRequests: requests, realModelRequests: 0, realEmployeeDataAccessed: false };
+  const largeBytes = Buffer.from('<!doctype html><!--' + 'x'.repeat(20 * 1024 * 1024) + '--><p>大附件验收</p>');
+  const sessionC = (await createSession()).sessionId;
+  const large = await rpc('/qifu-office', 'import', { sessionId: sessionC, name: '大附件验收.html', data: largeBytes.toString('base64') });
+  const largeResponse = await get(`/api/qifu.office.download?sessionId=${encodeURIComponent(sessionC)}&documentId=${large.document.id}`, cookie);
+  assert.equal(largeResponse.status, 200);
+  assert.equal(large.document.bytes, largeBytes.length);
+  assert.equal(createHash('sha256').update(Buffer.from(await largeResponse.arrayBuffer())).digest('hex'), createHash('sha256').update(largeBytes).digest('hex'));
+  report = { officeLoaded: true, largeDocumentBytes: largeBytes.length, unauthenticatedStatus: 401, crossSessionDownloadStatus: 404, immutableDocumentIds: true, samples: validated.sort((a, b) => a.format.localeCompare(b.format)), fakeModelRequests: requests, realModelRequests: 0, realEmployeeDataAccessed: false };
 } finally {
   process.off('SIGINT', interrupt); process.off('SIGTERM', interrupt);
   await stopChild();

@@ -55,8 +55,9 @@ function textLimit(text: string, maxBytes: number): string {
 
 function decodeUpload(value: unknown, limit: number): Uint8Array {
   const encoded = string(value, 'data')
+  // Canonical re-encoding validates padding without repeated-group regex stacks on large documents.
   if (encoded.length > Math.ceil(limit / 3) * 4 || encoded.length % 4 !== 0
-    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)) {
+    || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)) {
     throw new Error('Office upload is invalid base64 or exceeds its size limit')
   }
   const data = Buffer.from(encoded, 'base64')

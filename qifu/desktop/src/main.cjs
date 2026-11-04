@@ -212,10 +212,13 @@ async function loginEmployee(account, password, remember) {
     if (mainWindow !== window || window.isDestroyed()) return { ok: false, message: '登录窗口已关闭，请在当前窗口重新登录。' };
     if (remember) saveAccount(account.trim()); else forgetAccount();
     sendStatus(window, 'working', '身份验证成功，正在进入企福AI智脑…');
-    setTimeout(() => {
+    setTimeout(async () => {
       if (mainWindow === window && !window.isDestroyed()) {
-        runtimeMode = 'cloud';
-        void window.loadURL(GATEWAY_URL);
+        try {
+          await switchRuntime('local');
+        } catch (error) {
+          sendStatus(window, 'error', friendlyError(error));
+        }
       }
     }, 120);
     return { ok: true };

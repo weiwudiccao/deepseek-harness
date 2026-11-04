@@ -13,6 +13,7 @@ on:
       - packages/bundle/web-app/**
       - packages/client/ui-employee-identity/**
       - packages/client/ui-qifu-work-surface/**
+      - packages/client/ui-conversation/**
       - packages/client/ui-sidebar/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -63,7 +64,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: QifuAI-Brain-Server-Client-0.1.2-alpha.12-windows-x64
-          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.12-windows-x64.exe
+          name: QifuAI-Brain-Server-Client-0.1.2-alpha.13-windows-x64
+          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.13-windows-x64.exe
           if-no-files-found: error
           retention-days: 30

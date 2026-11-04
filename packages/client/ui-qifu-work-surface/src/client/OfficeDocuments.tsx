@@ -29,6 +29,8 @@ export interface OfficeDocumentsInjected {
   request: (endpoint: 'import' | 'list', payload: { sessionId: string; name?: string; data?: string }, signal: AbortSignal) => Promise<unknown>
   /** Append to the latest editable draft; false leaves the document available for a later reference. */
   appendReference: (reference: string) => boolean
+  /** Route non-image composer drops and pasted files to this mounted Session. */
+  registerFileIntake: (handler: (files: readonly File[]) => void) => () => void
 }
 
 /** Office control props assembled at the Session composer seat. */
@@ -52,6 +54,7 @@ interface SessionFiles {
 interface OfficeScope {
   readonly sessionId: string
   readonly controller: AbortController
+  busy: boolean
 }
 
 function emptyFiles(sessionId: string): SessionFiles {
@@ -108,7 +111,7 @@ function encodeFile(file: File, signal: AbortSignal): Promise<string> {
 }
 
 /** Import files into the active runtime and expose its Session's document outputs. */
-export function OfficeDocuments({ sessionId, useSession, input, request, appendReference, t }: OfficeDocumentsProps) {
+export function OfficeDocuments({ sessionId, useSession, input, request, appendReference, registerFileIntake, t }: OfficeDocumentsProps) {
   const running = useSession(value => value.running)
   const removed = useSession(value => value.removed)
   const [open, setOpen] = useState(false)
@@ -121,7 +124,7 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
 
   const refresh = useCallback(async (): Promise<void> => {
     const owned = scope.current
-    if (owned === null || owned.sessionId !== sessionId) return
+    if (owned === null || owned.sessionId !== sessionId || owned.busy) return
     const revision = ++listRevision.current
     setFiles(value => ({ ...value, loading: true }))
     try {
@@ -137,7 +140,7 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
   }, [request, sessionId, t])
 
   useEffect(() => {
-    const owned = { sessionId, controller: new AbortController() }
+    const owned = { sessionId, controller: new AbortController(), busy: false }
     scope.current = owned
     setFiles(emptyFiles(sessionId))
     return () => {
@@ -150,43 +153,59 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
     if (open) void refresh()
   }, [open, running, refresh])
 
-  const reference = (document: OfficeDocument): void => {
+  const reference = useCallback((document: OfficeDocument): void => {
     const inserted = appendReference(t('office.reference', { name: document.name, id: document.id }))
-    setFiles(value => ({ ...value, notice: t(inserted ? 'office.referenced' : 'office.referencePending'), error: '' }))
-  }
+    setFiles(value => ({ ...value, notice: t(inserted ? 'office.referenced' : 'office.referencePending') }))
+  }, [appendReference, t])
 
-  const upload = async (file: File): Promise<void> => {
+  const upload = useCallback(async (selected: readonly File[]): Promise<void> => {
     const owned = scope.current
-    if (owned === null || owned.sessionId !== sessionId || current.busy || blocked) return
-    const format = file.name.split('.').at(-1)?.toLowerCase()
-    if (format === undefined || !FORMATS.includes(format)) {
-      setFiles(value => ({ ...value, error: t('office.unsupported'), notice: '' }))
+    if (owned === null || owned.sessionId !== sessionId || blocked || selected.length === 0) return
+    setOpen(true)
+    if (owned.busy) {
+      setFiles(value => ({ ...value, error: t('office.error.busy'), notice: '' }))
       return
     }
-    if (file.size > MAX_DOCUMENT_BYTES) {
-      setFiles(value => ({ ...value, error: t('office.tooLarge'), notice: '' }))
-      return
+    for (const file of selected) {
+      const format = file.name.split('.').at(-1)?.toLowerCase()
+      if (format === undefined || !FORMATS.includes(format)) {
+        setFiles(value => ({ ...value, error: t('office.unsupported'), notice: '' }))
+        return
+      }
+      if (file.size > MAX_DOCUMENT_BYTES) {
+        setFiles(value => ({ ...value, error: t('office.tooLarge'), notice: '' }))
+        return
+      }
     }
+    owned.busy = true
     ++listRevision.current
     setFiles(value => ({ ...value, busy: true, loading: false, error: '', notice: '' }))
     try {
-      const data = await encodeFile(file, owned.controller.signal)
-      if (!ownsScope(scope.current, owned)) return
-      const result = await request('import', { sessionId, name: file.name, data }, owned.controller.signal)
-      if (!ownsScope(scope.current, owned)) return
-      if (!isRecord(result)) throw new Error('QIFU_OFFICE_RESPONSE_INVALID')
-      const document = parseDocument(result.document)
-      ++listRevision.current
-      setFiles(value => ({
-        ...value, busy: false, loading: false,
-        documents: [document, ...value.documents.filter(item => item.id !== document.id)],
-      }))
-      reference(document)
+      for (const file of selected) {
+        if (!ownsScope(scope.current, owned)) return
+        const data = await encodeFile(file, owned.controller.signal)
+        if (!ownsScope(scope.current, owned)) return
+        const result = await request('import', { sessionId, name: file.name, data }, owned.controller.signal)
+        if (!ownsScope(scope.current, owned)) return
+        if (!isRecord(result)) throw new Error('QIFU_OFFICE_RESPONSE_INVALID')
+        const document = parseDocument(result.document)
+        ++listRevision.current
+        setFiles(value => ({
+          ...value, loading: false,
+          documents: [document, ...value.documents.filter(item => item.id !== document.id)],
+        }))
+        reference(document)
+      }
     } catch (error) {
       if (!ownsScope(scope.current, owned)) return
-      setFiles(value => ({ ...value, busy: false, error: t('office.importFailed', { message: officeErrorMessage(error, t) }) }))
+      setFiles(value => ({ ...value, error: t('office.importFailed', { message: officeErrorMessage(error, t) }) }))
+    } finally {
+      owned.busy = false
+      if (ownsScope(scope.current, owned)) setFiles(value => ({ ...value, busy: false }))
     }
-  }
+  }, [blocked, reference, request, sessionId, t])
+
+  useEffect(() => registerFileIntake((selected) => { void upload(selected) }), [registerFileIntake, upload])
 
   return (
     <div className={css.root} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}>
@@ -210,7 +229,7 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
             onChange={(event) => {
               const file = event.currentTarget.files?.[0]
               event.currentTarget.value = ''
-              if (file !== undefined) void upload(file)
+              if (file !== undefined) void upload([file])
             }}
           />
           <div className={css.actions}>

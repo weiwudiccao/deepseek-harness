@@ -12,9 +12,9 @@ Status: implemented
 
 ## Decision
 
-桌面端在当前员工哈希应用数据主目录内创建 `local-workspace` 目录，并设置仅所有者可访问的权限。它把本机 DSH 进程启动令牌交换为签名 loopback Cookie 后，调用已认证的 `workspace/create` RPC；需要时再通过 `workspace/rename` 把产品名称设置为 `本机工作区`。Workspace 注册和 Electron Cookie 写入均在窗口从云端工作切换到本机来源前完成。
+桌面端在当前员工哈希应用数据主目录内创建 `local-workspace` 目录，并设置仅所有者可访问的权限。它把本机 DSH 进程启动令牌交换为签名 loopback Cookie 后，调用已认证的 `workspace/create` RPC；需要时再通过 `workspace/rename` 把产品名称设置为 `本机工作区`。Workspace 注册和 Electron Cookie 写入均在窗口加载本机来源前完成。员工登录成功后默认进入此本机运行时；云端工作仍需明确切换。本机初始化失败时停留在登录页，显示错误并允许重试。
 
-桌面端把产品自有 Web profile overlay 规范化为只包含企福账号上下文插件。Web profile 不提供 invariant 服务，因此不挂载该插件的 invariant companion。打包 profile 的客户端发现会沿每个 app-boot 模块代理进入 VFS 中的源 package manifest，使本机 Web 启动图包含真实浏览器名册。封装后的 macOS 运行时可能在 loopback 监听器接受连接前一瞬间公布来源地址，所以令牌交换只在连接被拒绝或重置时进行有限重试。已认证的 Workspace RPC 使用 Node loopback HTTP 客户端并设置五秒响应上限，不依赖 Electron 面向渲染进程的 fetch 栈；HTTP、Cookie 和 RPC 失败仍立即终止启动。
+桌面端把产品自有 Web profile overlay 规范化为企福账号上下文插件与部署使用的 `deepseek-official` / `deepseek-flash` 模型默认值，显示名称为 `DeepSeek-V4.1-Flash-1017`。云端启动器组合相同模型默认值。员工保存的模型偏好优先，已有会话保留原选择。Web profile 不提供 invariant 服务，因此不挂载该插件的 invariant companion。打包 profile 的客户端发现会沿每个 app-boot 模块代理进入 VFS 中的源 package manifest，使本机 Web 启动图包含真实浏览器名册。封装后的 macOS 运行时可能在 loopback 监听器接受连接前一瞬间公布来源地址，所以令牌交换只在连接被拒绝或重置时进行有限重试。已认证的 Workspace RPC 使用 Node loopback HTTP 客户端并设置五秒响应上限，不依赖 Electron 面向渲染进程的 fetch 栈；HTTP、Cookie 和 RPC 失败仍立即终止启动。
 
 受管目录、进程工作目录与 Workspace 注册表都使用同一个员工派生存储键。本机进程从该受限目录启动，避免通用 Web 在公布 loopback 来源前检查范围过大的“文稿”目录。打包后的 preset 发现会枚举条目名称并使用 `lstat`，不依赖原生 `Dirent` 方法，使 Session 创建能在可执行文件 VFS 中解析所选 preset，同时不跟随符号链接。再次登录的员工复用规范 Workspace 注册和归属其中的 Session；同一设备上的不同 OA 用户获得不同数据主目录。本机会话和文件留在设备上；模型请求仍可能使用已配置的网关，只有员工明确执行会话或文件发布操作时才会生成企福云端副本。
 

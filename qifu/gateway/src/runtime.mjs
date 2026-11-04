@@ -9,7 +9,11 @@ const MAX_STARTUP_OUTPUT_BYTES = 64 * 1024
 const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3'
 const CLOUD_WORKSPACE_DIRECTORY = 'cloud-workspace'
 const CLOUD_WORKSPACE_TITLE = '云端工作区'
-const QIFU_CONTEXT_PATCH = `- insert:
+const QIFU_CONTEXT_PATCH = `- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+- insert:
     - id: qifu-account-context
       name: '@deepseek-ai/dsh-qifu-account-context'
       config:
@@ -50,7 +54,7 @@ async function readOptional(file) {
   }
 }
 
-/** Ensure one employee runtime profile includes only the managed Qifu context extension. */
+/** Ensure one employee runtime profile includes the Qifu context and deployment model default. */
 export async function ensureEmployeeWebProfile(dshHome) {
   if (typeof dshHome !== 'string' || !isAbsolute(dshHome)) throw new Error('DSH_HOME must be an absolute path')
   const profileDir = join(dshHome, 'profiles', 'web')

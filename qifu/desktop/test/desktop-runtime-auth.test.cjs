@@ -16,13 +16,18 @@ function desktop(context, responses, tokens = ['session-a']) {
   const windows = [];
   const timers = [];
   const runtime = { child: { exitCode: null }, origin: new URL('http://127.0.0.1:43120/') };
-  const owner = { current: runtime, retire: async () => { calls.push('retire'); owner.current = undefined; } };
+  const owner = {
+    current: runtime,
+    retire: async () => { calls.push('retire'); owner.current = undefined; },
+    get: async () => { calls.push('local-runtime'); owner.current = runtime; return runtime; },
+  };
   let authorization;
   let launch;
   class Window {
     static getAllWindows() { return windows.filter(window => !window.destroyed); }
     constructor() {
-      this.webContents = { setWindowOpenHandler() {}, on() {}, send() {} };
+      this.statuses = [];
+      this.webContents = { setWindowOpenHandler() {}, on() {}, send: (_channel, value) => this.statuses.push(value) };
       this.loads = [];
       this.destroyed = false;
       windows.push(this);
@@ -61,6 +66,7 @@ function desktop(context, responses, tokens = ['session-a']) {
     setTimeout: callback => { timers.push(callback); return timers.length; },
   }, { filename });
   return { owner, runtime, calls, authorization, launch: (...args) => launch(...args), spawns, appEvents, windows, timers,
+    runtimeInfo: () => handlers.get('desktop:runtime-info')({ senderFrame: { url: 'https://47.106.208.2:3443/' } }),
     switchRuntime: target => handlers.get('desktop:switch-runtime')({ senderFrame: { url: 'https://47.106.208.2:3443/' } }, target),
     login: () => {
       if (Window.getAllWindows().length === 0) appEvents.get('activate')();
@@ -104,6 +110,51 @@ test('successful employee login retires the previous runtime before entering the
   assert.equal(result.ok, true);
   assert.equal(app.owner.current, undefined);
   assert.deepEqual(app.calls, ['/auth/login', 'retire', '/auth/session']);
+});
+
+test('successful employee login opens the employee local workspace by default', async context => {
+  const app = desktop(context, [new Response('{"ok":true}'), new Response('{"ok":true,"user":"employee-a"}')]);
+  assert.equal((await app.login()).ok, true);
+  assert.deepEqual(app.windows[0].loads, []);
+  for (const timer of app.timers) await timer();
+  assert.deepEqual(app.calls, ['/auth/login', 'retire', '/auth/session', 'local-runtime', app.runtime.origin.href]);
+  assert.equal(app.runtimeInfo().mode, 'local');
+  assert.equal(app.owner.current, app.runtime);
+});
+
+test('the employee can switch from the default local workspace to cloud work', async context => {
+  const app = desktop(context, [new Response('{"ok":true}'), new Response('{"ok":true,"user":"employee-a"}')]);
+  assert.equal((await app.login()).ok, true);
+  for (const timer of app.timers) await timer();
+  assert.equal((await app.switchRuntime('cloud')).ok, true);
+  assert.deepEqual(app.windows[0].loads, [app.runtime.origin.href, 'https://47.106.208.2:3443']);
+  assert.equal(app.runtimeInfo().mode, 'cloud');
+  assert.equal(app.owner.current, app.runtime);
+});
+
+test('a default local startup failure stays on the login page and reports the error', async context => {
+  const app = desktop(context, [new Response('{"ok":true}'), new Response('{"ok":true,"user":"employee-a"}')]);
+  app.owner.get = async () => { throw new Error('test-only local startup failed'); };
+  assert.equal((await app.login()).ok, true);
+  for (const timer of app.timers) await timer();
+  assert.deepEqual(app.windows[0].loads, []);
+  assert.equal(app.windows[0].statuses.at(-1).kind, 'error');
+  assert.match(app.windows[0].statuses.at(-1).message, /test-only local startup failed/u);
+});
+
+test('default local startup cannot navigate or report errors into a replacement login window', async context => {
+  const app = desktop(context, [new Response('{"ok":true}'), new Response('{"ok":true,"user":"employee-a"}')]);
+  assert.equal((await app.login()).ok, true);
+  let finish;
+  app.owner.get = () => new Promise(resolve => { finish = resolve; });
+  const opening = app.timers[0]();
+  app.windows[0].destroy();
+  app.appEvents.get('activate')();
+  app.owner.current = app.runtime;
+  finish(app.runtime);
+  await opening;
+  assert.deepEqual(app.windows[1].loads, []);
+  assert.deepEqual(app.windows[1].statuses, []);
 });
 
 test('local runtime authorization rejects an employee identity paired with a changed cookie', async context => {

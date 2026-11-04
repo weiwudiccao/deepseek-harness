@@ -41,7 +41,7 @@ Host 接受 `enabledEnv`（默认 `QIFUAI_OFFICE_ENABLED`）、`dshHome`、`maxD
 
 ### 办公文档
 
-会话输入框可导入 DOCX、PPTX、XLSX、文字 PDF、HTML/HTM、CSV、TXT、Markdown、RTF、ODT、ODP 和 ODS。模型通过 `office_read` 读取选中文档，并通过 `office_create` 生成这些现代格式。文件保存在当前员工运行时的 `DSH_HOME` 中，以会话和随机文档 ID 隔离。产物不覆盖原件或模型指定的工作区路径；输入框提供鉴权下载列表。本机导入保留在本机运行时，提取内容仍可能随员工模型请求发送。
+可将文档拖入或粘贴到会话输入框，也可使用「办公文件」选择器。非图片文件进入当前会话的文档导入器，图片保留原附件流程。文档面板会自动展开，显示导入状态、转换错误及下载入口。同一批文件顺序导入；同时发起另一批导入时会明确提示繁忙。会话输入框可导入 DOCX、PPTX、XLSX、文字 PDF、HTML/HTM、CSV、TXT、Markdown、RTF、ODT、ODP 和 ODS。模型通过 `office_read` 读取选中文档，并通过 `office_create` 生成这些现代格式。文件保存在当前员工运行时的 `DSH_HOME` 中，以会话和随机文档 ID 隔离。产物不覆盖原件或模型指定的工作区路径；输入框提供鉴权下载列表。本机导入保留在本机运行时，提取内容仍可能随员工模型请求发送。
 
 解析和生成在可终止的 worker 中执行，不继承员工环境凭据，并限制字节、时间、堆内存、XML、压缩包和文本大小。远程资源、文档宏、HTML 脚本和 OCR 均停用。PDF 生成使用随包提供、采用 SIL Open Font License 的 Noto Sans SC 字体，不依赖系统字体。文件名选择受支持的解析器；损坏或加密的内容会报错，不会作为二进制直接发送模型。
 

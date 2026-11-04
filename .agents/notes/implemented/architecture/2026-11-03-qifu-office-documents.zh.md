@@ -12,7 +12,7 @@ Status: implemented
 
 企福工作界面插件拥有按需启用的 `office_read` / `office_create` 工具和员工运行时 Harness home 下的不可变文档。随机文档 ID 归属单个会话，文件名不能选择宿主路径。Connection 提供鉴权导入、列表和下载。产物保留原件。
 
-固定版本 officeparser 在可终止的 worker 中运行，限制字节、解压膨胀、文本、时间和堆内存。worker 仅接收安全的临时目录变量，不继承员工凭据。远程资源、宏、脚本和 OCR 均停用。随包中文字体让 PDF 生成不依赖系统字体。两种企福启动器启用该能力；普通 Harness profile 保持停用。
+固定版本 officeparser 在可终止的 worker 中运行，限制字节、解压膨胀、文本、时间和堆内存。worker 仅接收安全的临时目录变量，不继承员工凭据。远程资源、宏、脚本和 OCR 均停用。随包中文字体让 PDF 生成不依赖系统字体。两种企福启动器启用该能力；普通 Harness profile 保持停用。挂载的文档控件向 Conversation 注册按会话寻址的非图片文件接收器。拖拽与粘贴在图片校验之前分流图片和文档，导入器展开状态面板并顺序处理一个批次。接收器的 disposer 与取消动作绑定挂载的会话，因此导入不能把引用插入另一个会话。
 
 ## Alternatives considered
 

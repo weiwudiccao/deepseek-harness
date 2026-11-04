@@ -37,6 +37,46 @@ async function bench() {
 }
 
 describe('ConversationController', () => {
+  it('dispatches files only to the registered Session and clears the handler on disposal', async () => {
+    const b = await bench()
+    try {
+      const handler = vi.fn()
+      const files = [new File(['sheet'], 'report.xlsx')]
+      const id = 's1' as Parameters<typeof b.root.registerFileIntake>[0]
+      expect(b.root.intakeFiles(id, files)).toBe(false)
+      const dispose = b.root.registerFileIntake(id, handler)
+      expect(b.root.intakeFiles('other' as typeof id, files)).toBe(false)
+      expect(b.root.intakeFiles(id, files)).toBe(true)
+      expect(handler).toHaveBeenCalledWith(files)
+      dispose()
+      expect(b.root.intakeFiles(id, files)).toBe(false)
+      b.root.registerFileIntake(id, handler)
+      await b.fiber.dispose()
+      expect(b.root.intakeFiles(id, files)).toBe(false)
+    } finally {
+      await b.runtime.dispose()
+    }
+  })
+
+  it('does not let an expired file-intake disposer remove a replacement registration', async () => {
+    const b = await bench()
+    try {
+      const id = 's1' as Parameters<typeof b.root.registerFileIntake>[0]
+      const handler = vi.fn()
+      const old = b.root.registerFileIntake(id, handler)
+      const current = b.root.registerFileIntake(id, handler)
+      old()
+      const files = [new File(['report'], 'report.html')]
+      expect(b.root.intakeFiles(id, files)).toBe(true)
+      expect(handler).toHaveBeenCalledOnce()
+      current()
+      expect(b.root.intakeFiles(id, files)).toBe(false)
+    } finally {
+      await b.runtime.dispose()
+    }
+  })
+
+
   it('routes operations through the public Session binding', async () => {
     const b = await bench()
     await b.scoped.send('hello')

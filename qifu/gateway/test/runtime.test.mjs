@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import test from 'node:test'
+import { load as parseYaml } from 'js-yaml'
 import {
   createDshRuntimeProvider,
   employeeStorageKey,
@@ -51,6 +52,24 @@ test('employee Web profiles contain the managed context plugin exactly once', as
   assert.ok(!patch.includes('[]'))
   assert.equal(patch.match(/id: qifu-account-context$/gmu)?.length, 1)
   assert.ok(!patch.includes('/invariant'))
+})
+
+test('employee Web profile selects V4.1 Flash without changing personal model settings', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'qifu-runtime-model-profile-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const settingsPath = join(root, 'settings.yaml')
+  const personalSettings = 'agent-default-model:\n  provider: deepseek-official\n  model: deepseek-v4-pro\n  reasoningEffort: high\n'
+  await writeFile(settingsPath, personalSettings)
+
+  await ensureEmployeeWebProfile(root)
+  await ensureEmployeeWebProfile(root)
+
+  const patch = parseYaml(await readFile(join(root, 'profiles', 'web', 'cordis.patch.yml'), 'utf8'))
+  assert.deepEqual(patch.filter(entry => entry.id === 'agent-default-model'), [{
+    id: 'agent-default-model',
+    config: { provider: 'deepseek-official', model: 'deepseek-flash' },
+  }])
+  assert.equal(await readFile(settingsPath, 'utf8'), personalSettings)
 })
 
 test('employee cloud Workspace is registered idempotently and receives its product title', async () => {

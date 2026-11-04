@@ -42,6 +42,9 @@ export function apply(ctx: ClientContext): void {
         if (!result.ok) throw new Error(result.error.message)
         return result.value
       },
+      registerFileIntake: handler => ctx.effect(
+        () => ctx.conversation.registerFileIntake(sessionId, handler), 'qifu-office file intake',
+      ),
       appendReference: (reference) => {
         const binding = ctx.sessions.binding(sessionId)
         if (binding === undefined || binding.session.getSnapshot().removed) return false

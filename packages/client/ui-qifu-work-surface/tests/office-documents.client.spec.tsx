@@ -21,14 +21,15 @@ afterEach(() => {
 function bench(overrides: Partial<OfficeDocumentsProps> = {}) {
   const request = vi.fn(async (endpoint: string): Promise<unknown> => endpoint === 'list' ? { documents: [] } : { document })
   const appendReference = vi.fn(() => true)
+  const registerFileIntake = vi.fn(() => () => undefined)
   const props = {
     sessionId: 'session-1', useSession: (select: (state: { running: boolean; removed: boolean }) => unknown) => select({ running: false, removed: false }),
-    input: { phase: 'plain' }, request, appendReference, t,
+    input: { phase: 'plain' }, request, appendReference, registerFileIntake, t,
     ...overrides,
   } as unknown as OfficeDocumentsProps
   const view = render(<OfficeDocuments {...props} />)
   const open = () => { fireEvent.click(screen.getByRole('button', { name: '办公文件' })) }
-  return { props, request, appendReference, view, open }
+  return { props, request, appendReference, registerFileIntake, view, open }
 }
 
 function deferred<T>() {
@@ -58,6 +59,45 @@ describe('Qifu office document intake', () => {
     await waitFor(() => { expect(test.appendReference).toHaveBeenCalledWith('办公文档：季度报告.xlsx（文档 ID：doc-1）') })
     expect(test.request).toHaveBeenCalledWith('import', { sessionId: 'session-1', name: '季度报告.xlsx', data: 'b2ZmaWNlIGJ5dGVz' }, expect.any(AbortSignal))
     expect(screen.getByRole('status').textContent).toContain('已加入当前草稿')
+  })
+
+  it('imports dropped office files in order and opens their document panel', async () => {
+    let intake: ((files: readonly File[]) => void) | undefined
+    const unregister = vi.fn()
+    const request = vi.fn(async (endpoint: string, payload: { name?: string }) => endpoint === 'list'
+      ? { documents: [] }
+      : { document: { ...document, id: payload.name, name: payload.name } })
+    const test = bench({ request, registerFileIntake: (handler) => { intake = handler; return unregister } })
+    expect(intake).toBeDefined()
+    act(() => { intake?.([new File(['a'], 'one.xlsx'), new File(['b'], 'two.xlsx')]) })
+    await waitFor(() => { expect(test.appendReference).toHaveBeenCalledTimes(2) })
+    expect(screen.getByRole('dialog', { name: '当前会话办公文件' })).toBeTruthy()
+    expect(request.mock.calls.filter(call => call[0] === 'import').map(call => call[1].name)).toEqual(['one.xlsx', 'two.xlsx'])
+    test.view.unmount()
+    expect(unregister).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a dropped unsupported file out of the image path and explains conversion', async () => {
+    let intake: ((files: readonly File[]) => void) | undefined
+    const test = bench({ registerFileIntake: (handler) => { intake = handler; return () => undefined } })
+    act(() => { intake?.([new File(['legacy'], 'old.ppt')]) })
+    expect((await screen.findByRole('alert')).textContent).toContain('请转换为 DOCX')
+    expect(test.request.mock.calls.some(call => call[0] === 'import')).toBe(false)
+    expect(test.appendReference).not.toHaveBeenCalled()
+  })
+
+  it('refuses concurrent drops instead of silently discarding files', async () => {
+    let intake: ((files: readonly File[]) => void) | undefined
+    const pending = deferred<unknown>()
+    const request = vi.fn(async (endpoint: string) => endpoint === 'list' ? { documents: [] } : pending.promise)
+    bench({ request, registerFileIntake: (handler) => { intake = handler; return () => undefined } })
+    act(() => { intake?.([new File(['a'], 'one.xlsx')]) })
+    await waitFor(() => { expect(request.mock.calls.some(call => call[0] === 'import')).toBe(true) })
+    act(() => { intake?.([new File(['b'], 'two.xlsx')]) })
+    expect((await screen.findByRole('alert')).textContent).toContain('当前正在处理其他办公文件')
+    expect(request.mock.calls.filter(call => call[0] === 'import')).toHaveLength(1)
+    await act(async () => { pending.resolve({ document }) })
+    expect(screen.getByRole('alert').textContent).toContain('当前正在处理其他办公文件')
   })
 
   it('retains an imported document when the composer cannot accept a reference yet', async () => {
@@ -164,6 +204,7 @@ describe('Qifu office composer registration', () => {
     const setDraft = vi.fn((text: string) => { draft = text })
     const binding = { ctx: { session: 'session-1' }, session: { getSnapshot: () => ({ removed: false }) } }
     const resolveBinding = vi.fn(() => binding)
+    const registerFileIntake = vi.fn(() => () => undefined)
     const rpc = vi.fn(async () => ({ ok: true, value: { documents: [] } }))
     const ctx = {
       effect: (effect: () => unknown) => effect(),
@@ -174,13 +215,16 @@ describe('Qifu office composer registration', () => {
       },
       sessions: { list: {}, binding: resolveBinding },
       get: () => ({ rpc: { call: rpc } }),
-      conversation: { input: { for: () => ({ state: { getSnapshot: () => ({ draft, phase }) }, setDraft }) } },
+      conversation: { registerFileIntake, input: { for: () => ({ state: { getSnapshot: () => ({ draft, phase }) }, setDraft }) } },
     } as unknown as Parameters<typeof apply>[0]
     Object.defineProperty(window, 'qifuDesktop', { configurable: true, value: {} })
     apply(ctx)
     const registration = registrations.find(item => item.name === 'conversation.input.left')
     expect(registration).toBeDefined()
     const actions = registration?.inject?.('session-1')
+    const receive = () => undefined
+    actions?.registerFileIntake(receive)
+    expect(registerFileIntake).toHaveBeenCalledWith('session-1', receive)
     draft = 'text typed while uploading'
     expect(actions?.appendReference('office reference')).toBe(true)
     expect(setDraft).toHaveBeenLastCalledWith('text typed while uploading\noffice reference\n')

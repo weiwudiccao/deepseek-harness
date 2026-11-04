@@ -40,7 +40,7 @@ import css from './InputBar.module.css'
 export type InputBarProps = ComposerBarProps
 
 export function InputBar({
-  useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
+  useSession, useInput, inputActions, keyboard, addImages, intakeFiles: intakeDocuments, removeImage, draftImages,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
@@ -244,14 +244,32 @@ export function InputBar({
     if (rejected !== null) showToast(rejected)
   }, [addImages, attachments, imageLimits, showToast, t])
 
-  const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
+  const intakeFiles = useCallback((files: readonly File[]): void => {
+    if (locked || machineBusy || files.length === 0) return
+    const documents = files.filter(file => !file.type.startsWith('image/'))
+    if (documents.length > 0) {
+      try {
+        if (intakeDocuments?.(documents) !== true) {
+          intakeImages(files)
+          return
+        }
+      } catch (error: unknown) {
+        showToast(error instanceof Error ? error.message : String(error))
+        return
+      }
+    }
+    const images = documents.length === 0 ? files : files.filter(file => file.type.startsWith('image/'))
+    if (images.length > 0) intakeImages(images)
+  }, [intakeDocuments, intakeImages, locked, machineBusy, showToast])
+
+  const canAcceptDrop = !locked && !machineBusy && (addImages !== undefined || intakeDocuments !== undefined)
 
   // The keymap handlers read live bar state through this ref so the editor
   // registration survives re-renders without re-arming per keystroke.
   const gate = useRef({
-    locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeImages,
+    locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeFiles,
   })
-  gate.current = { locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeImages }
+  gate.current = { locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeFiles }
 
   useEffect(() => {
     if (editor === null || keyboard === undefined) return
@@ -278,7 +296,7 @@ export function InputBar({
           g.subagent === null,
         ))
       },
-      intakeFiles: (files) => { gate.current.intakeImages(files) },
+      intakeFiles: (files) => { gate.current.intakeFiles(files) },
       pasteText: (text) => {
         if (gate.current.machineBusy || gate.current.locked) return
         keyboard.paste(text)
@@ -396,7 +414,7 @@ export function InputBar({
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,
-          onAddImages: intakeImages,
+          onAddImages: intakeFiles,
           onRemoveImage: (id) => { removeImage?.(id) },
           dropLimits: imageLimits === undefined ? undefined : {
             count: imageLimits.maxImagesPerMessage,

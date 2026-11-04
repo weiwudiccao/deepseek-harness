@@ -87,6 +87,7 @@ interface BenchOptions {
   rightItems?: React.ReactNode
   attachments?: readonly ComposerAttachment[]
   addImages?: (files: readonly File[]) => string | null
+  intakeFiles?: (files: readonly File[]) => boolean
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
   toggleCommandMenu?: (selection: { start: number; end: number }) => void
@@ -170,6 +171,7 @@ function bench(over?: BenchOptions) {
     inputActions: shell.actions,
     keyboard: shell,
     addImages: over?.addImages ?? (() => null),
+    ...(over?.intakeFiles === undefined ? {} : { intakeFiles: over.intakeFiles }),
     removeImage,
     draftImages: ids => ids.flatMap((id) => {
       const attachment = over?.attachments?.find(candidate => candidate.id === id)
@@ -240,6 +242,78 @@ function editableOf(input: HTMLElement): boolean {
 function writeDraft(shell: SessionInputShell, text: string): void {
   act(() => { shell.setDraft(text) })
 }
+
+describe('session document file routing', () => {
+  it('routes an Excel drop to the Session document intake without an image error', () => {
+    const addImages = vi.fn(() => 'image-only rejection')
+    const intakeFiles = vi.fn(() => true)
+    const result = bench({ addImages, intakeFiles })
+    const file = new File(['sheet'], 'report.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    act(() => { attachmentOwner(result.slotCalls).onAddImages([file]) })
+    expect(intakeFiles).toHaveBeenCalledWith([file])
+    expect(addImages).not.toHaveBeenCalled()
+    expect(result.view.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps images on their existing path while routing HTML from a mixed paste', () => {
+    const addImages = vi.fn(() => null)
+    const intakeFiles = vi.fn(() => true)
+    const result = bench({ addImages, intakeFiles })
+    const image = new File(['image'], 'picture.png', { type: 'image/png' })
+    const document = new File(['<p>report</p>'], 'report.html', { type: 'text/html' })
+    fireEvent.paste(result.textarea, {
+      clipboardData: {
+        items: [image, document].map(file => ({ kind: 'file', type: file.type, getAsFile: () => file })),
+        getData: () => '',
+      },
+    })
+    expect(intakeFiles).toHaveBeenCalledWith([document])
+    expect(addImages).toHaveBeenCalledWith([image])
+  })
+
+  it('preserves the existing whole-batch image refusal when no document handler accepts the files', () => {
+    const addImages = vi.fn(() => 'image-only rejection')
+    const intakeFiles = vi.fn(() => false)
+    const result = bench({ addImages, intakeFiles })
+    const image = new File(['image'], 'picture.png', { type: 'image/png' })
+    const document = new File(['report'], 'report.html', { type: 'text/html' })
+    act(() => { attachmentOwner(result.slotCalls).onAddImages([image, document]) })
+    expect(addImages).toHaveBeenCalledWith([image, document])
+    expect(result.view.getByRole('alert').textContent).toContain('image-only rejection')
+  })
+
+  it('does not route files while a command submission is unsettled', async () => {
+    const addImages = vi.fn(() => null)
+    const intakeFiles = vi.fn(() => true)
+    const result = bench({ addImages, intakeFiles })
+    let release!: (outcome: SubmitOutcome) => void
+    const pending = new Promise<SubmitOutcome>((resolve) => { release = resolve })
+    act(() => {
+      result.shell.setDraft('/goal ')
+      result.shell.beginCommand({ token: '/goal ', submit: () => pending }, {
+        start: 0, end: 6, draftRev: result.shell.snapshot.draftRev,
+      })
+      result.shell.submit()
+    })
+    expect(result.shell.snapshot.phase).toBe('submitting')
+    try {
+      act(() => { attachmentOwner(result.slotCalls).onAddImages([new File(['sheet'], 'report.xlsx')]) })
+      expect(intakeFiles).not.toHaveBeenCalled()
+      expect(addImages).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => { release({ kind: 'success' }) })
+    }
+  })
+
+  it('does not route dropped documents while the composer is locked', () => {
+    const addImages = vi.fn(() => null)
+    const intakeFiles = vi.fn(() => true)
+    const result = bench({ addImages, intakeFiles, disabled: true })
+    act(() => { attachmentOwner(result.slotCalls).onAddImages([new File(['sheet'], 'report.xlsx')]) })
+    expect(intakeFiles).not.toHaveBeenCalled()
+    expect(addImages).not.toHaveBeenCalled()
+  })
+})
 
 describe('image draft rail', () => {
   it('collects clipboard files while preserving text from a mixed paste', async () => {

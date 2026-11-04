@@ -92,6 +92,25 @@ async function bench() {
 }
 
 describe('Conversation inject API', () => {
+  it('binds file intake to the composer Session and keeps the no-Session bar without an intake', async () => {
+    const b = await bench()
+    try {
+      const handler = vi.fn()
+      const files = [new File(['sheet'], 'report.xlsx')]
+      const composer = b.composerApi(ROOT)
+      expect(b.composerApi(undefined).intakeFiles).toBeUndefined()
+      expect(composer.intakeFiles?.(files)).toBe(false)
+      const dispose = b.runtime.ctx.conversation.registerFileIntake(ROOT, handler)
+      expect(composer.intakeFiles?.(files)).toBe(true)
+      expect(handler).toHaveBeenCalledWith(files)
+      dispose()
+      expect(composer.intakeFiles?.(files)).toBe(false)
+    } finally {
+      await b.runtime.dispose()
+    }
+  })
+
+
   it('assembles the target-neutral read face without Session side effects', async () => {
     const b = await bench()
     const { injected } = b.conversationApi(ROOT)

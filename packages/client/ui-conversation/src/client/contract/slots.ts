@@ -40,7 +40,7 @@ export interface ComposerAttachmentsOwnerProps {
   attachments: readonly ComposerAttachment[]
   /** Whether a document-level file drop may add images now. */
   canAcceptDrop: boolean
-  /** Add one dropped batch through the composer's validation path. */
+  /** Route one dropped batch, including mixed image and document files, through composer intake. */
   onAddImages: (files: readonly File[]) => void
   /** Remove one draft image through the Conversation service. */
   onRemoveImage: (id: DraftAttachmentId) => void
@@ -269,6 +269,8 @@ export interface ComposerBarOwnerProps {
 export interface ComposerBarInjected {
   keyboard: ComposerKeyboard | undefined
   addImages: ((files: readonly File[]) => string | null) | undefined
+  /** Session-specific non-image intake; false retains the existing image-format refusal. */
+  intakeFiles?: ((files: readonly File[]) => boolean) | undefined
   removeImage: ((id: DraftAttachmentId) => void) | undefined
   draftImages: ((ids: readonly DraftAttachmentId[]) => readonly ComposerAttachment[]) | undefined
   resolveSubmitMode: (

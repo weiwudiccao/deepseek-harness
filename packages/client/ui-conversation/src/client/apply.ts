@@ -304,6 +304,7 @@ export function apply(ctx: Context): void {
       const inputTriggers = inputHub.inputTriggers(sessionId)
       return {
         keyboard: shell,
+        intakeFiles: files => conversation.intakeFiles(sessionId, files),
         addImages: (files) => {
           try {
             const images = conversation.createDraftImages(files)

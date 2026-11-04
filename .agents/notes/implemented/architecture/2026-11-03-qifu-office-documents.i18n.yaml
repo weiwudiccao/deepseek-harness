@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-03-qifu-office-documents.md
-2026-11-03-qifu-office-documents.md: ac90a8a739a02f9a5cf7ac18948dfa90b1d64172
-2026-11-03-qifu-office-documents.zh.md: b717aaa4ffb44eb0e0fa6679c779330fd66d5f8a
+2026-11-03-qifu-office-documents.md: e89138a3818d8dddb9a441df23c422fb6f6cf7bd
+2026-11-03-qifu-office-documents.zh.md: 0947b9f142646bc93084e6cc46b39ad45116b3a6

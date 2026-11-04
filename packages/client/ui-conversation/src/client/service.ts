@@ -40,6 +40,20 @@ export interface IConversation {
    */
   readonly blocks: ComposerBlocks
   /**
+   * Register the current non-image file consumer for one Session.
+   * @param sessionId - Session owning this intake.
+   * @param handler - callback receiving the ordered file batch.
+   * @returns disposer that withdraws only this registration.
+   */
+  registerFileIntake(sessionId: SessionId, handler: (files: readonly File[]) => void): () => void
+  /**
+   * Deliver non-image files to a Session-specific consumer.
+   * @param sessionId - target Session.
+   * @param files - ordered browser files.
+   * @returns true when a registered consumer received the batch.
+   */
+  intakeFiles(sessionId: SessionId, files: readonly File[]): boolean
+  /**
    * Send a prompt into the caller scope's session (queued turn).
    * @param text - prompt text, sent verbatim as one text block.
    * @returns completion; business failures reject (and land in promptError).
@@ -150,6 +164,7 @@ export class ConversationController extends Service implements IConversation {
   /** The per-session composer-block registry. */
   readonly blocks: ComposerBlocks
   private readonly draftAttachments = new Map<DraftAttachmentId, ComposerAttachment>()
+  private readonly fileIntakes = new Map<SessionId, { handler: (files: readonly File[]) => void }>()
 
   /**
    * @param ctx - owning root context (the plugin apply context; the service
@@ -167,7 +182,23 @@ export class ConversationController extends Service implements IConversation {
         revokePreview(attachment.previewUrl)
       }
       this.draftAttachments.clear()
+      this.fileIntakes.clear()
     }, 'conversation draft attachments')
+  }
+
+  registerFileIntake(sessionId: SessionId, handler: (files: readonly File[]) => void): () => void {
+    const entry = { handler }
+    this.fileIntakes.set(sessionId, entry)
+    return () => {
+      if (this.fileIntakes.get(sessionId) === entry) this.fileIntakes.delete(sessionId)
+    }
+  }
+
+  intakeFiles(sessionId: SessionId, files: readonly File[]): boolean {
+    const entry = this.fileIntakes.get(sessionId)
+    if (entry === undefined || files.length === 0) return false
+    entry.handler(files)
+    return true
   }
 
   /**

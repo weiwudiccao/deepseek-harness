@@ -5,6 +5,7 @@ const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { PassThrough } = require('node:stream');
 const test = require('node:test');
+const { load: parseYaml } = require('js-yaml');
 const {
   ensureEmployeeLocalWorkspace,
   ensureLocalWebProfile,
@@ -79,6 +80,24 @@ test('local Web profile removes the unsupported invariant entry from existing em
   assert.equal(patch.match(/id: qifu-account-context$/gmu)?.length, 1);
   assert.ok(!patch.includes('qifu-account-context-invariant'));
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-qifu-account-context'], '0.1.2-alpha.3');
+});
+
+test('local Web profile selects V4.1 Flash without changing personal model settings', (context) => {
+  const root = mkdtempSync(join(tmpdir(), 'qifu-local-model-profile-'));
+  context.after(() => rmSync(root, { recursive: true, force: true }));
+  const settingsPath = join(root, 'settings.yaml');
+  const personalSettings = 'agent-default-model:\n  provider: deepseek-official\n  model: deepseek-v4-pro\n  reasoningEffort: high\n';
+  writeFileSync(settingsPath, personalSettings);
+
+  ensureLocalWebProfile(root);
+  ensureLocalWebProfile(root);
+
+  const patch = parseYaml(readFileSync(join(root, 'profiles', 'web', 'cordis.patch.yml'), 'utf8'));
+  assert.deepEqual(patch.filter(entry => entry.id === 'agent-default-model'), [{
+    id: 'agent-default-model',
+    config: { provider: 'deepseek-official', model: 'deepseek-flash' },
+  }]);
+  assert.equal(readFileSync(settingsPath, 'utf8'), personalSettings);
 });
 
 function requestFixture(statusCode, cookies, calls) {

@@ -9,7 +9,11 @@ const LOOPBACK_RESPONSE_TIMEOUT_MS = 5000;
 const TOKEN_EXCHANGE_ATTEMPTS = 21;
 const TOKEN_EXCHANGE_RETRY_DELAY_MS = 50;
 const QIFU_CONTEXT_PLUGIN_VERSION = '0.1.2-alpha.3';
-const QIFU_CONTEXT_PATCH = `- insert:
+const QIFU_CONTEXT_PATCH = `- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+- insert:
     - id: qifu-account-context
       name: '@deepseek-ai/dsh-qifu-account-context'
       config:
@@ -27,7 +31,7 @@ function writeAtomic(file, content, mode = 0o600) {
   fs.renameSync(temporary, file);
 }
 
-/** Keep the desktop-owned Web profile on its supported Qifu context composition. */
+/** Keep the desktop-owned Web profile on its Qifu context and deployment model defaults. */
 function ensureLocalWebProfile(home) {
   const profileDir = join(home, 'profiles', 'web');
   const manifestPath = join(profileDir, 'package.json');

@@ -61,18 +61,26 @@ describe('Qifu office document intake', () => {
     expect(screen.getByRole('status').textContent).toContain('已加入当前草稿')
   })
 
-  it('imports dropped office files in order and opens their document panel', async () => {
+  it('imports dropped office files in order without opening the document panel', async () => {
     let intake: ((files: readonly File[]) => void) | undefined
     const unregister = vi.fn()
-    const request = vi.fn(async (endpoint: string, payload: { name?: string }) => endpoint === 'list'
-      ? { documents: [] }
-      : { document: { ...document, id: payload.name, name: payload.name } })
+    const documents: unknown[] = []
+    const request = vi.fn(async (endpoint: string, payload: { name?: string }) => {
+      if (endpoint === 'list') return { documents }
+      const imported = { ...document, id: payload.name, name: payload.name }
+      documents.push(imported)
+      return { document: imported }
+    })
     const test = bench({ request, registerFileIntake: (handler) => { intake = handler; return unregister } })
     expect(intake).toBeDefined()
     act(() => { intake?.([new File(['a'], 'one.xlsx'), new File(['b'], 'two.xlsx')]) })
     await waitFor(() => { expect(test.appendReference).toHaveBeenCalledTimes(2) })
-    expect(screen.getByRole('dialog', { name: '当前会话办公文件' })).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: '当前会话办公文件' })).toBeNull()
+    expect(screen.getByRole('button', { name: '办公文件' }).getAttribute('aria-expanded')).toBe('false')
     expect(request.mock.calls.filter(call => call[0] === 'import').map(call => call[1].name)).toEqual(['one.xlsx', 'two.xlsx'])
+    test.open()
+    expect(await screen.findByText('one.xlsx')).toBeTruthy()
+    expect(await screen.findByText('two.xlsx')).toBeTruthy()
     test.view.unmount()
     expect(unregister).toHaveBeenCalledOnce()
   })
@@ -82,6 +90,7 @@ describe('Qifu office document intake', () => {
     const test = bench({ registerFileIntake: (handler) => { intake = handler; return () => undefined } })
     act(() => { intake?.([new File(['legacy'], 'old.ppt')]) })
     expect((await screen.findByRole('alert')).textContent).toContain('请转换为 DOCX')
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(test.request.mock.calls.some(call => call[0] === 'import')).toBe(false)
     expect(test.appendReference).not.toHaveBeenCalled()
   })
@@ -98,6 +107,31 @@ describe('Qifu office document intake', () => {
     expect(request.mock.calls.filter(call => call[0] === 'import')).toHaveLength(1)
     await act(async () => { pending.resolve({ document }) })
     expect(screen.getByRole('alert').textContent).toContain('当前正在处理其他办公文件')
+  })
+
+  it.each(['oversized', 'failed'])('shows a %s drop error without opening the panel', async (kind) => {
+    let intake: ((files: readonly File[]) => void) | undefined
+    const request = vi.fn(async () => { throw new Error('文件已损坏') })
+    const test = bench({ request, registerFileIntake: (handler) => { intake = handler; return () => undefined } })
+    const file = new File(['bytes'], 'report.xlsx')
+    if (kind === 'oversized') Object.defineProperty(file, 'size', { value: 25 * 1024 * 1024 + 1 })
+    act(() => { intake?.([file]) })
+    expect((await screen.findByRole('alert')).textContent).toContain(kind === 'oversized' ? '25 MiB' : '文件已损坏')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(test.appendReference).not.toHaveBeenCalled()
+  })
+
+  it('keeps a manually closed panel closed when an import finishes', async () => {
+    const pending = deferred<unknown>()
+    const request = vi.fn(async (endpoint: string) => endpoint === 'list' ? { documents: [] } : pending.promise)
+    const test = bench({ request })
+    test.open()
+    fireEvent.change(screen.getByLabelText('选择办公文件'), { target: { files: [new File(['bytes'], 'report.xlsx')] } })
+    await waitFor(() => { expect(request.mock.calls.some(call => call[0] === 'import')).toBe(true) })
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    await act(async () => { pending.resolve({ document }) })
+    expect(test.appendReference).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('retains an imported document when the composer cannot accept a reference yet', async () => {

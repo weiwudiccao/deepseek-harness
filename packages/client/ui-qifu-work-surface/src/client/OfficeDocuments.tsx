@@ -161,7 +161,6 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
   const upload = useCallback(async (selected: readonly File[]): Promise<void> => {
     const owned = scope.current
     if (owned === null || owned.sessionId !== sessionId || blocked || selected.length === 0) return
-    setOpen(true)
     if (owned.busy) {
       setFiles(value => ({ ...value, error: t('office.error.busy'), notice: '' }))
       return
@@ -212,6 +211,7 @@ export function OfficeDocuments({ sessionId, useSession, input, request, appendR
       <button type="button" className={css.trigger} aria-expanded={open} disabled={removed} onClick={() => { setOpen(value => !value) }}>
         {t('office.button')}
       </button>
+      {!open && current.error !== '' && <p className={css.error} role="alert">{current.error}</p>}
       {open && (
         <div className={css.panel} role="dialog" aria-label={t('office.title')}>
           <div className={css.header}>

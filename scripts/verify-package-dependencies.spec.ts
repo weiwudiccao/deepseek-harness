@@ -229,6 +229,35 @@ describe('package dependency scope', () => {
     ]))
   })
 
+  it('classifies only the reviewed Qifu helper exports', () => {
+    const { consumerFacts } = hostRuntimeFixture()
+    const entries = [
+      ['@deepseek-ai/dsh-home-paths', 'resolveDshHome'],
+      ['@deepseek-ai/dsh-session', 'SessionId'],
+      ['@deepseek-ai/dsh-tools', 'defineTool'],
+    ] as const
+    const hostRuntimeExportUses = entries.map(([packageName, exportName]) => ({
+      ...consumerFacts.hostRuntimeExportUses[0]!, packageName, specifier: packageName, exportName,
+    }))
+    const exactPolicy = {
+      safeHostDependencyExports: Object.fromEntries(entries.map(([packageName]) => [
+        packageName, PACKAGE_DEPENDENCY_POLICY.safeHostDependencyExports[packageName] ?? [],
+      ])),
+      peerRequiredHostExports: {},
+    }
+    const workspaceNames = new Set(entries.map(([packageName]) => packageName))
+    expect(collectHostDependencyExportPolicyViolations(
+      [{ ...consumerFacts, hostRuntimeExportUses }], workspaceNames, exactPolicy,
+    )).toEqual([])
+    expect(collectHostDependencyExportPolicyViolations(
+      [{ ...consumerFacts, hostRuntimeExportUses: [...hostRuntimeExportUses, {
+        ...hostRuntimeExportUses[2]!, exportName: 'default',
+      }] }], workspaceNames, exactPolicy,
+    )).toEqual([
+      expect.stringContaining('@deepseek-ai/dsh-tools#default is not classified as safe or peer-required'),
+    ])
+  })
+
   it('applies a duplicate-safe package classification to its subpaths', () => {
     const { provider, workspaceNames, consumerFacts } = hostRuntimeFixture()
 

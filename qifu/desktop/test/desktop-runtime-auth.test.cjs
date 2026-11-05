@@ -15,6 +15,8 @@ function desktop(context, responses, tokens = ['session-a']) {
   const spawns = [];
   const windows = [];
   const timers = [];
+  let initialize;
+  const bridge = { url: 'http://127.0.0.1:43566/qifu-browser-test', token: 'test-only-browser-bridge-token', stop: async () => {} };
   const runtime = { child: { exitCode: null }, origin: new URL('http://127.0.0.1:43120/') };
   const owner = {
     current: runtime,
@@ -41,7 +43,7 @@ function desktop(context, responses, tokens = ['session-a']) {
   const electron = {
     BrowserWindow: Window,
     app: {
-      getPath: () => userData, whenReady: () => ({ then() {} }),
+      getPath: () => userData, whenReady: () => ({ then(callback) { initialize = callback; return { catch() {} }; } }),
       on: (name, handler) => appEvents.set(name, handler),
       quit: () => calls.push('quit'), exit: () => calls.push('exit'),
     },
@@ -49,7 +51,7 @@ function desktop(context, responses, tokens = ['session-a']) {
     session: { defaultSession: {
       fetch: async url => { calls.push(new URL(url).pathname); return responses.shift(); },
       cookies: { get: async () => [{ value: tokens.length > 1 ? tokens.shift() : tokens[0] }] },
-      setPermissionRequestHandler() {},
+      setPermissionRequestHandler() {}, setCertificateVerifyProc() {},
     } },
   };
   const filename = resolve(__dirname, '../src/main.cjs');
@@ -58,6 +60,8 @@ function desktop(context, responses, tokens = ['session-a']) {
       ? { ...require(name), existsSync: () => true }
       : name === 'node:child_process'
         ? { spawn: (command, args, options) => { spawns.push({ command, args, options }); throw new Error('test-only captured launch'); } }
+        : name === './browser-test-support.cjs'
+        ? { startBrowserTestServer: async () => bridge }
         : name === './local-runtime-support.cjs'
       ? { ...support, createLocalRuntimeOwner: options => { authorization = options.authorize; launch = options.launch; return owner; } }
       : require(name),
@@ -65,11 +69,11 @@ function desktop(context, responses, tokens = ['session-a']) {
     process, URL, Buffer,
     setTimeout: callback => { timers.push(callback); return timers.length; },
   }, { filename });
-  return { owner, runtime, calls, authorization, launch: (...args) => launch(...args), spawns, appEvents, windows, timers,
+  return { owner, runtime, calls, authorization, bridge, initialize: () => initialize(), launch: (...args) => launch(...args), spawns, appEvents, windows, timers,
     runtimeInfo: () => handlers.get('desktop:runtime-info')({ senderFrame: { url: 'https://47.106.208.2:3443/' } }),
     switchRuntime: target => handlers.get('desktop:switch-runtime')({ senderFrame: { url: 'https://47.106.208.2:3443/' } }, target),
-    login: () => {
-      if (Window.getAllWindows().length === 0) appEvents.get('activate')();
+    login: async () => {
+      if (Window.getAllWindows().length === 0) await initialize();
       return handlers.get('desktop:login')({ senderFrame: { url: 'file:///login.html' } }, {
         account: 'employee-a', password: 'test-only-password', remember: false,
       });
@@ -77,8 +81,9 @@ function desktop(context, responses, tokens = ['session-a']) {
   };
 }
 
-test('local runtime routes chat and search through the employee gateway', context => {
+test('local runtime routes chat and search through the employee gateway', async context => {
   const app = desktop(context, []);
+  await app.initialize();
   const controller = new AbortController();
   assert.throws(
     () => app.launch({ user: 'employee-a', token: 'employee-session-token' }, controller.signal),
@@ -91,6 +96,11 @@ test('local runtime routes chat and search through the employee gateway', contex
   assert.equal(env.DEEPSEEK_SEARCH_BASE_URL, 'https://47.106.208.2:3443/qifu-model/v1');
   assert.equal(env.QIFUAI_CONTEXT_TOKEN, 'employee-session-token');
   assert.equal(env.QIFUAI_OFFICE_ENABLED, 'true');
+  assert.equal(env.QIFUAI_BROWSER_TEST_ENABLED, 'true');
+  assert.equal(env.QIFUAI_BROWSER_TEST_URL, app.bridge.url);
+  assert.equal(env.QIFUAI_BROWSER_TEST_TOKEN, app.bridge.token);
+  assert.equal(env.HOME, process.env.HOME);
+  assert.equal(env.USERPROFILE, process.env.USERPROFILE);
 });
 
 test('failed employee login preserves the current local runtime', async context => {
@@ -178,6 +188,7 @@ test('desktop quit waits for runtime retirement even when requested twice', asyn
   assert.deepEqual(app.calls, []);
   finish();
   await retirement;
+  await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(app.calls, ['quit']);
   beforeQuit({ preventDefault: () => { prevented += 1; } });
   assert.equal(prevented, 2);
@@ -185,7 +196,7 @@ test('desktop quit waits for runtime retirement even when requested twice', asyn
 
 test('local navigation rejects a runtime retired before the switch continuation', async context => {
   const app = desktop(context, []);
-  app.appEvents.get('activate')();
+  await app.initialize();
   let finish;
   app.owner.get = () => new Promise(resolve => { finish = resolve; });
   const switching = app.switchRuntime('local');
@@ -199,7 +210,7 @@ test('local navigation rejects a runtime retired before the switch continuation'
 
 test('pending local navigation cannot load a replacement login window', async context => {
   const app = desktop(context, []);
-  app.appEvents.get('activate')();
+  await app.initialize();
   let finish;
   app.owner.get = () => new Promise(resolve => { finish = resolve; });
   const switching = app.switchRuntime('local');
@@ -218,4 +229,23 @@ test('a completed login timer cannot navigate a replacement window', async conte
   app.appEvents.get('activate')();
   for (const timer of app.timers) timer();
   assert.deepEqual(app.windows[1].loads, []);
+});
+
+
+test('desktop startup awaits the private browser service before displaying login', async context => {
+  const app = desktop(context, []);
+  assert.equal(app.windows.length, 0);
+  await app.initialize();
+  assert.equal(app.windows.length, 1);
+});
+
+test('desktop quit waits for browser-service cleanup after retiring the employee runtime', async context => {
+  const app = desktop(context, []); await app.initialize();
+  let finish; const cleanup = new Promise(resolve => { finish = resolve; });
+  app.bridge.stop = () => { app.calls.push('browser-cleanup'); return cleanup; };
+  app.appEvents.get('before-quit')({ preventDefault() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(app.calls, ['retire', 'browser-cleanup']);
+  finish(); await cleanup; await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(app.calls, ['retire', 'browser-cleanup', 'quit']);
 });

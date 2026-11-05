@@ -47,6 +47,17 @@ describe('application entrypoints', () => {
     ])
   })
 
+  it('classifies the Office Loader fixture without allowing neighboring launchers', () => {
+    const root = fixture()
+    const directory = 'packages/client/ui-qifu-work-surface/tests/fixtures/office-loader'
+    write(root, `${directory}/driver.host.ts`, '#!/usr/bin/env node\n')
+    write(root, `${directory}/another-driver.host.ts`, '#!/usr/bin/env node\n')
+
+    expect(applicationEntrypointViolations(root)).toEqual([
+      `${directory}/another-driver.host.ts: executable source has no application/build/test classification`,
+    ])
+  })
+
   it('rejects an executable at an application package root', () => {
     const root = fixture()
     write(root, 'apps/example/rogue.mjs', '#!/usr/bin/env node\n')

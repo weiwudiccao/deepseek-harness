@@ -77,6 +77,27 @@ describe('experimental workspace constraints', () => {
 })
 
 describe('package payload constraints', () => {
+  it('publishes the Qifu Office worker and assets only for their owning package', () => {
+    const manifest = {
+      name: '@deepseek-ai/dsh-client-ui-qifu-work-surface',
+      exports: { './client': { default: './lib/client.js' } },
+    }
+    expect(expectedDshPackageFiles(manifest)).toEqual([
+      'lib/index.js',
+      'lib/invariant.js',
+      'lib/client.js',
+      'lib/office-worker.cjs',
+      'lib/assets/**/*',
+      'lib/types/**/*.d.ts',
+    ])
+    expect(expectedDshPackageFiles({ ...manifest, name: '@deepseek-ai/dsh-client-ui-other' })).toEqual([
+      'lib/index.js',
+      'lib/invariant.js',
+      'lib/client.js',
+      'lib/types/**/*.d.ts',
+    ])
+  })
+
   it('includes a declared profile patch without a package-name allowlist', () => {
     expect(expectedDshPackageFiles({
       name: '@deepseek-ai/dsh-private-profile',

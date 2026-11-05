@@ -58,13 +58,17 @@ jobs:
         working-directory: qifu/desktop
         run: npm ci
 
+      - name: Verify packaged isolated browser runtime
+        working-directory: qifu/desktop
+        run: npx --no-install electron scripts/check-electron-browser-runtime.cjs --runtimePath "${{ github.workspace }}/dist-exe/deepseek-harness-sdk-runtime-win-x64.exe" --DSH_ROOT "${{ github.workspace }}/dist-exe"
+
       - name: Build Windows portable client
         working-directory: qifu/desktop
         run: npm run pack:win
 
       - uses: actions/upload-artifact@v7
         with:
-          name: QifuAI-Brain-Server-Client-0.1.2-alpha.14-windows-x64
-          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.14-windows-x64.exe
+          name: QifuAI-Brain-Server-Client-0.1.2-alpha.15-windows-x64
+          path: qifu/desktop/dist/QifuAI-Brain-Server-Client-0.1.2-alpha.15-windows-x64.exe
           if-no-files-found: error
           retention-days: 30

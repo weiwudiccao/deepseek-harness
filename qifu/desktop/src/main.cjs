@@ -13,6 +13,8 @@ const {
   validateRuntimeOrigin,
 } = require('./local-runtime-support.cjs');
 
+const { startBrowserTestServer } = require('./browser-test-support.cjs');
+
 const PRODUCTION_GATEWAY_URL = 'https://47.106.208.2:3443';
 const PRODUCTION_GATEWAY_CERT_SHA256 = 'SHA256/VO2JrTSIZg0T9sCJSOlB0jcMWjyp5yOIsVRTl4hIqlA=';
 const GATEWAY_URL = !app.isPackaged && process.env.QIFUAI_GATEWAY_URL
@@ -48,6 +50,8 @@ const GATEWAY_ROUTES = new Map([
 ]);
 
 let mainWindow;
+let browserTestBridge;
+let browserTestStartup;
 let loggingIn = false;
 let runtimeMode = 'cloud';
 const localRuntimeOwner = createLocalRuntimeOwner({
@@ -284,6 +288,7 @@ async function authorizeLocalRuntime() {
 
 function launchLocalRuntime({ user, token }, signal) {
   signal.throwIfAborted();
+  if (!browserTestBridge) throw new Error('本机浏览器组件尚未就绪。');
   const storageKey = crypto.createHash('sha256').update(user).digest('hex');
   const dataRoot = path.join(app.getPath('userData'), 'local-runtime', storageKey);
   const { root, cli, certificate } = runtimePaths();
@@ -310,6 +315,9 @@ function launchLocalRuntime({ user, token }, signal) {
       QIFUAI_CONTEXT_TOKEN: token,
       QIFUAI_CONTEXT_LOCAL: 'true',
       QIFUAI_OFFICE_ENABLED: 'true',
+      QIFUAI_BROWSER_TEST_ENABLED: 'true',
+      QIFUAI_BROWSER_TEST_URL: browserTestBridge.url,
+      QIFUAI_BROWSER_TEST_TOKEN: browserTestBridge.token,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -620,14 +628,18 @@ ipcMain.handle('desktop:download-cloud-item', async (event, input) => {
 });
 
 app.whenReady().then(async () => {
+  if (retiringForQuit) return;
+  browserTestStartup = startBrowserTestServer({ BrowserWindow, session, timeoutMs: 30_000, maxDomBytes: 1024 * 1024, maxConcurrentOperations: 2 });
+  browserTestBridge = await browserTestStartup;
+  if (retiringForQuit) return;
   forgetLegacySshPassword();
   configureGatewayCertificate();
   createWindow();
   await showLogin();
-});
+}).catch(() => app.exit(1));
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (browserTestBridge && !retiringForQuit && (!mainWindow || mainWindow.isDestroyed())) {
     createWindow();
     void showLogin();
   }
@@ -638,10 +650,13 @@ let retiredForQuit = false;
 app.on('before-quit', (event) => {
   if (retiredForQuit) return;
   event.preventDefault();
-  retiringForQuit ??= localRuntimeOwner.retire().then(() => {
+  retiringForQuit ??= (async () => {
+    await localRuntimeOwner.retire();
+    await browserTestStartup;
+    await browserTestBridge?.stop();
     retiredForQuit = true;
     app.quit();
-  }, () => app.exit(1));
+  })().catch(() => app.exit(1));
 });
 
 app.on('window-all-closed', () => {

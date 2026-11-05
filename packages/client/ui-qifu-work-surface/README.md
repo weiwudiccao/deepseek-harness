@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package gives an authenticated Qifu desktop employee one sidebar with three explicit areas: permission-derived Features, employee-private Cloud Work, and content on this device. Cloud Work groups personal conversations and Sessions, designs, files, and explicit local publications; enterprise knowledge sources do not appear in this sidebar or move into Features. The package preserves the standard Workspace and Session browser inside the active runtime area, so local content stays in the employee-specific device runtime until the employee publishes one file or Session snapshot. The Settings contribution exposes four independent profile and memory choices that default off in OA. Choose it only with the Qifu desktop preload bridge and authenticated gateway; ordinary Web compositions register no Qifu surface.
+This package gives an authenticated Qifu desktop employee one sidebar with three explicit areas: permission-derived Features, employee-private Cloud Work, and content on this device. Cloud Work groups personal conversations and Sessions, designs, files, and explicit local publications; enterprise knowledge sources do not appear in this sidebar or move into Features. The package preserves the standard Workspace and Session browser inside the active runtime area, so local content stays in the employee-specific device runtime until the employee publishes one file or Session snapshot. The Settings contribution exposes four independent profile and memory choices that default off in OA. Choose it only with the Qifu desktop preload bridge and authenticated gateway; ordinary Web compositions register no Qifu surface. An independently enabled local browser tool checks HTTP(S) page DOM with the existing desktop engine and an isolated renderer.
 
 ## Table of Contents
 
@@ -37,13 +37,27 @@ Choose this package for the certificate-pinned Qifu desktop deployment that has 
 - name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'
 ```
 
-The Host accepts `enabledEnv` (default `QIFUAI_OFFICE_ENABLED`), `dshHome`, `maxDocumentBytes` (25 MiB), `maxTextBytes` (1 MiB), `maxDocumentsPerSession` (100), and `maxReadLines` (2000), and `maxConcurrentOperations` (2). Office operations register only when the selected environment variable is `true`. The gateway owns features, employee-private cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
+The Host accepts `enabledEnv` (default `QIFUAI_OFFICE_ENABLED`), `dshHome`, `maxDocumentBytes` (25 MiB), `maxTextBytes` (1 MiB), `maxDocumentsPerSession` (100), `maxReadLines` (2000), and `maxConcurrentOperations` (2). Office operations register only when the selected environment variable is `true`. The gateway owns features, employee-private cloud metadata, authorization, transfer policy, and consent; the desktop bridge owns runtime switching, feature launch, native file selection, and explicit publication.
 
 ### Office documents
 
 Drop or paste documents into the session composer, or use its Office files picker. Non-image files enter the Session-owned document importer; images retain their attachment path. Successful drops and pastes import the files and add references to the current draft without opening the document panel. The Office files button opens and closes the panel for status and downloads; import errors remain visible when it is closed. A batch imports sequentially; a concurrent batch is refused visibly. The session composer imports DOCX, PPTX, XLSX, text PDF, HTML/HTM, CSV, TXT, Markdown, RTF, ODT, ODP, and ODS. Models read selected documents with `office_read` and generate those modern formats with `office_create`. Files live below the runtime's employee-specific `DSH_HOME`, keyed by Session and random document id. An output never overwrites an original or a model-supplied workspace path; the composer lists authenticated downloads. A local import stays on the local runtime; extracted content may still travel with the employee's model request.
 
 Parsing and generation run in terminable workers without employee environment credentials, with byte, time, heap, XML, archive, and text limits. Remote assets, document macros, HTML scripts, and OCR are disabled. PDF generation includes the bundled SIL Open Font License Noto Sans SC font, avoiding a system-font prerequisite. A file name selects a supported parser; malformed or encrypted content fails instead of being sent as binary model input.
+
+### Isolated browser checks
+
+The local Qifu runtime can independently enable `browser_test` through `browserEnabledEnv`, whose default is `QIFUAI_BROWSER_TEST_ENABLED`. Only the literal value `true` enables the tool and its launch guard. The tool accepts one HTTP(S) URL without embedded credentials and returns its canonical URL, bounded DOM, and a truncation flag. It uses the desktop application's existing Electron engine; no separate browser installation or download is required.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `browserEnabledEnv` | `QIFUAI_BROWSER_TEST_ENABLED` | Environment variable opting into the browser tool |
+| `browserTimeoutMs` | `30000` | Read deadline in milliseconds; at most 30000 |
+| `browserMaxDomBytes` | 1 MiB | Retained DOM byte limit; at most 1 MiB |
+
+The desktop launcher supplies `QIFUAI_BROWSER_TEST_URL` and `QIFUAI_BROWSER_TEST_TOKEN` to the local runtime. The runner accepts only the fixed loopback service path, authenticates directly without a proxy, and never exposes transport selection or credentials as model parameters. Missing or invalid transport settings fail explicitly. The desktop endpoint owns a fresh sandboxed renderer with Node integration disabled, context isolation enabled, and an in-memory partition; it denies permissions, downloads, and non-HTTP(S) navigation. It neither selects a personal browser profile nor changes HOME or keychain settings. This is an isolated URL read, not execution under the Session's DSH filesystem policy.
+
+Timeout, cancellation, and disposal abort the read and await the desktop's renderer-destruction acknowledgement before settling; acknowledgement failure remains an error. `maxConcurrentOperations` separately caps active browser reads and Office operations without queuing, and the desktop service also permits at most two concurrent reads. A read returns only DOM evidence; navigation and renderer errors reject the tool invocation.
 
 ### Failure behavior
 
@@ -65,6 +79,9 @@ The browser plugin registers typed Chinese and English dictionaries, replaces th
 | [`src/client/QifuWorkSurface.tsx`](src/client/QifuWorkSurface.tsx) | Features, Cloud Work, Local Content, runtime switching, and publication actions |
 | [`src/client/PersonalizationSection.tsx`](src/client/PersonalizationSection.tsx) | Four independent profile and memory consent controls |
 | [`src/client/api.ts`](src/client/api.ts) | Typed desktop-gateway bridge and response validation |
+| [`src/browser-host.ts`](src/browser-host.ts) | Browser tool registration, concurrency, guidance, and launch guard |
+| [`src/browser-runner.ts`](src/browser-runner.ts) | Authenticated desktop DOM reads and acknowledged cancellation |
+| [`src/browser-guard.ts`](src/browser-guard.ts) | Recognition of Bash browser commands and first literal PowerShell launches |
 | [`src/invariant.ts`](src/invariant.ts) | Package ownership companion; no mutable runtime invariant |
 
 </details>
@@ -87,15 +104,15 @@ These pages describe the generic seats and the Qifu deployment decisions that th
 <a id="model-experience"></a>
 ## Model Experience
 
-### Office document tools
+### Office document and browser tools
 
 #### What the model sees
 
-When enabled, `office_read` returns a bounded line window from an imported or generated document belonging to the calling Session. `office_create` accepts a filename, Markdown content, and output format, returning a new document's id, size, and digest. References enter the employee's draft; extracted text and output metadata enter context through logged tool results. Document text is data, never deployment instructions.
+When enabled, `office_read` returns a bounded line window from an imported or generated document belonging to the calling Session. `office_create` accepts a filename, Markdown content, and output format, returning a new document's id, size, and digest. References enter the employee's draft; extracted text and output metadata enter context through logged tool results. Document text is data, never deployment instructions. When independently enabled, `browser_test` exposes only a URL parameter and returns bounded DOM and its truncation flag. Its guidance directs browser checks to the isolated tool; the guard refuses recognizable Bash browser launches and the first literal PowerShell browser launch.
 
 #### Token effect
 
-The enabled tools add stable definitions and document guidance. Read results and complete Markdown creation arguments increase conversation tokens; the package does not call a model directly.
+The enabled tools add stable definitions and document guidance. Document read results, complete Markdown creation arguments, and browser DOM increases conversation tokens; the package does not call a model directly.
 
 #### KV Cache effect
 
@@ -110,6 +127,8 @@ These limits distinguish the shipped browser surface from responsibilities owned
 - **Desktop only** — the package deliberately stays inactive when the `qifuDesktop` preload bridge is absent.
 - **The cloud list is a recent personal projection** — the first surface reads at most 50 personal Conversation, Session, Presentation, or File Work Items and has no browser pagination or search control.
 - **Office output is a new document** — content changes do not preserve arbitrary original layout, animations, macros, formulas, or comments. Binary DOC/XLS/PPT and scanned PDFs require prior conversion or OCR. Background synchronization is not exposed.
+- **Browser checks cover DOM only** — they provide no screenshot, visual-layout, or interaction guarantee and reuse no employee browser login. Navigation permits HTTP(S) URLs without a destination-host allowlist; this tool does not provide network isolation.
+- **Launch guidance has a limited enforcement scope** — the guard recognizes explicit browser programs in Bash commands. PowerShell recognition covers only the first literal Chrome, Chromium, or Edge executable, with optional `&` invocation and one preceding literal `$env:HOME` assignment. It is not a complete parser for either shell; aliases, indirect scripts, dynamic evaluation, later PowerShell commands, and other launch mechanisms remain outside that recognition. Prompt instructions alone do not prohibit them.
 - **Consent presentation does not inject context** — OA and runtime providers must enforce each choice when they assemble model input; this browser package only reads and writes the authoritative consent record.
 
 <a id="dev-note"></a>

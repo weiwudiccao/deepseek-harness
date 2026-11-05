@@ -365,6 +365,12 @@ Source: [`packages/client/hmr/src/index.ts:31`](../packages/client/hmr/src/index
 export interface Config {
   /** Environment variable that enables Office operations only when it equals true. */
   readonly enabledEnv?: string
+  /** Environment variable enabling local isolated desktop DOM reads. */
+  readonly browserEnabledEnv?: string
+  /** Maximum duration of one desktop DOM read, at most 30000 milliseconds. */
+  readonly browserTimeoutMs?: number
+  /** Maximum retained DOM bytes per read, at most 1 MiB. */
+  readonly browserMaxDomBytes?: number
   /** Employee-specific Harness home; omitted follows DSH_HOME and then ~/.dsh. */
   readonly dshHome?: string
   /** Accepted raw bytes per document, at most the 25 MiB client ceiling. */
@@ -380,7 +386,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/client/ui-qifu-work-surface/src/index.ts:9`](../packages/client/ui-qifu-work-surface/src/index.ts)
+Source: [`packages/client/ui-qifu-work-surface/src/index.ts:10`](../packages/client/ui-qifu-work-surface/src/index.ts)
 
 <a id="deepseek-aidsh-code-runtime-worker-thread"></a>
 

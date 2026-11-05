@@ -1,0 +1,3 @@
+- insert:
+    - id: qifu-browser-surface
+      name: '@deepseek-ai/dsh-client-ui-qifu-work-surface'

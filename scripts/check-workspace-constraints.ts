@@ -149,6 +149,8 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-client-ui-primitives': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-web': ['lib/**/*.css'],
   '@deepseek-ai/dsh-client-ui-theme': ['lib/styles'],
+  // Office parsing runs in its CJS worker and embeds the bundled document font.
+  '@deepseek-ai/dsh-client-ui-qifu-work-surface': ['lib/office-worker.cjs', 'lib/assets/**/*'],
   // The CPython side ships as source .py files, published as-is rather than built.
   '@deepseek-ai/dsh-code-runtime-python': ['py/**/*.py'],
   // The shipped preset compositions travel inside the roster package.

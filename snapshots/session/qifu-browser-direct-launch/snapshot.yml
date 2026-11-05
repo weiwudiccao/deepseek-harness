@@ -1,0 +1,17 @@
+version: 1
+scenario: qifu-browser-direct-launch
+profile: headless
+composition: qifu-browser-direct-launch
+recording: authored
+header:
+  class: qifu-browser-direct-launch
+  pin: true
+replay:
+  override: true
+platform: posix
+permission: workspace-write
+environment:
+  QIFUAI_BROWSER_TEST_ENABLED: 'true'
+  QIFUAI_OFFICE_ENABLED: 'false'
+  QIFUAI_BROWSER_TEST_URL: 'http://127.0.0.1:1/qifu-browser-test'
+  QIFUAI_BROWSER_TEST_TOKEN: 'snapshot-browser-token-not-a-real-credential'

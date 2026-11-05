@@ -1,12 +1,11 @@
 /** Run the real desktop DOM bridge through the shared authenticated DSH/SEA smoke. */
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { once } = require('node:events');
-const { mkdtemp, rm } = require('node:fs/promises');
 const { createServer } = require('node:http');
-const { tmpdir } = require('node:os');
 const { isAbsolute, join } = require('node:path');
+const { promisify } = require('node:util');
 const { app, BrowserWindow, session } = require('electron');
 const argumentsList = process.argv.slice(2);
 const moduleIndex = argumentsList.indexOf('--browserModule');
@@ -19,7 +18,12 @@ const { startBrowserTestServer } = require(modulePath ?? '../src/browser-test-su
 
 let child;
 let bridge;
-let scratch;
+const scratch = process.env.QIFU_BROWSER_ACCEPTANCE_ROOT;
+assert.ok(scratch && isAbsolute(scratch), 'The Node parent must provide a private acceptance root');
+app.setPath('userData', scratch);
+app.setPath('sessionData', scratch);
+app.setName('Qifu Browser Runtime Acceptance');
+const phase = message => process.stderr.write(`[electron-browser-acceptance] ${message}\n`);
 let slowPage;
 const sockets = new Set();
 const windows = new Set();
@@ -30,18 +34,27 @@ let report;
 let failed = false;
 let exiting;
 const deadline = setTimeout(() => { failed = true; void finish(new Error('Electron browser acceptance exceeded 150 seconds')); }, 150_000);
-const childDone = () => child === undefined || child.exitCode !== null || child.signalCode !== null;
+const childDone = () => child?.pid === undefined || child.exitCode !== null || child.signalCode !== null;
 async function stopChild() {
   if (childDone()) return;
-  const exited = once(child, 'exit'); child.kill('SIGTERM');
+  const closed = once(child, 'close');
+  if (process.platform === 'win32') {
+    await promisify(execFile)('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { timeout: 10_000, windowsHide: true });
+    await closed;
+    return;
+  }
+  child.kill('SIGTERM');
   const timer = setTimeout(() => child.kill('SIGKILL'), 5000);
-  try { await exited; } finally { clearTimeout(timer); }
+  try { await closed; } finally { clearTimeout(timer); }
 }
 async function finish(error) {
+  if (error) { process.stderr.write(`${error.stack ?? error}\n`); failed = true; }
   exiting ??= (async () => {
     clearTimeout(deadline);
+    const cleanupDeadline = setTimeout(() => { process.stderr.write('Electron browser cleanup exceeded 20 seconds\n'); app.exit(1); }, 20_000);
     try {
-      await stopChild(); await bridge?.stop();
+      phase('stop-harness'); await stopChild();
+      phase('stop-browser-bridge'); await bridge?.stop();
       for (const socket of sockets) socket.destroy();
       if (slowPage?.listening) await new Promise(resolve => slowPage.close(resolve));
       assert.equal([...windows].every(window => window.isDestroyed()), true);
@@ -51,11 +64,9 @@ async function finish(error) {
         assert.equal(value.getStoragePath(), null);
         assert.deepEqual(await value.cookies.get({}), []);
       }
-    } catch (cleanupError) { error ??= cleanupError; }
-    finally { if (scratch) await rm(scratch, { recursive: true, force: true }); }
-    if (error) { process.stderr.write(`${error.stack ?? error}\n`); failed = true; }
-    else process.stdout.write(`${JSON.stringify({ ...report, isolatedWindowsCreated: windows.size, isolatedWindowsDestroyed: destroyedWindows.size, privateSessionsNonPersistent: true, privateSessionCookiesCleared: true, remainingOwnedWindows: 0, temporaryFilesRemoved: true })}\n`);
-    app.exit(failed ? 1 : 0);
+      if (!failed) process.stdout.write(`${JSON.stringify({ ...report, isolatedWindowsCreated: windows.size, isolatedWindowsDestroyed: destroyedWindows.size, privateSessionsNonPersistent: true, privateSessionCookiesCleared: true, remainingOwnedWindows: 0 })}\n`);
+    } catch (cleanupError) { process.stderr.write(`${cleanupError.stack ?? cleanupError}\n`); failed = true; }
+    finally { clearTimeout(cleanupDeadline); phase('exit-electron'); app.exit(failed ? 1 : 0); }
   })();
   return exiting;
 }
@@ -64,11 +75,9 @@ process.once('SIGTERM', () => { failed = true; void finish(new Error('Electron b
 app.on('window-all-closed', () => {}); // The fixture owns app exit after its background windows are destroyed.
 
 void (async () => {
-  scratch = await mkdtemp(join(tmpdir(), 'qifu-electron-browser-accept-'));
-  app.setPath('userData', scratch);
-  app.setPath('sessionData', scratch);
-  app.setName('Qifu Browser Runtime Acceptance');
+  phase('await-ready');
   await app.whenReady();
+  phase('ready');
   class TrackedWindow {
     constructor(options) {
       assert.equal(options.webPreferences.sandbox, true);
@@ -84,6 +93,7 @@ void (async () => {
       return window;
     }
   }
+  phase('start-browser-bridge');
   bridge = await startBrowserTestServer({ BrowserWindow: TrackedWindow, session: { fromPartition(partition, options) {
     assert.equal(partition.startsWith('persist:'), false);
     const value = session.fromPartition(partition, options); privateSessions.add(value); return value;
@@ -101,18 +111,21 @@ void (async () => {
   const headers = { authorization: `Bearer ${bridge.token}`, 'content-type': 'application/json', 'x-qifu-browser-request-id': id, 'x-qifu-browser-created-at': String(createdAt) };
   const created = new Promise(resolve => { expectedCancellationWindow = resolve; });
   const pending = fetch(bridge.url, { method: 'POST', headers, body: JSON.stringify({ requestId: id, url: `http://127.0.0.1:${slowPage.address().port}/`, timeoutMs: 10_000, maxDomBytes: 1024 }) });
-  await created;
+  await created; phase('cancel-window-created');
   const cancelled = await fetch(bridge.url, { method: 'DELETE', headers, body: JSON.stringify({ requestId: id }) });
+  phase('cancel-acknowledged');
   assert.equal(cancelled.status, 204); assert.equal((await pending).status, 409); assert.equal(bridge.activeWindowCount, 0);
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/KEY|SECRET|TOKEN|PASSWORD|DEEPSEEK|NODE_OPTIONS/iu.test(name)));
+  phase('start-dsh-harness');
   child = spawn(process.execPath, [join(__dirname, 'check-browser-runtime.mjs'), ...argumentsList], {
     env: { ...environment, ELECTRON_RUN_AS_NODE: '1', QIFUAI_BROWSER_TEST_URL: bridge.url, QIFUAI_BROWSER_TEST_TOKEN: bridge.token },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   let output = ''; let stderr = '';
   child.stdout.on('data', chunk => { output = `${output}${chunk}`.slice(-65_536); });
-  child.stderr.on('data', chunk => { stderr = `${stderr}${chunk}`.slice(-65_536); });
-  const [code, signal] = await once(child, 'exit');
+  child.stderr.on('data', chunk => { stderr = `${stderr}${chunk}`.slice(-65_536); process.stderr.write(chunk); });
+  const [code, signal] = await once(child, 'close');
+  phase('dsh-harness-closed');
   assert.equal(signal, null, stderr); assert.equal(code, 0, stderr);
   report = JSON.parse(output.trim().split('\n').at(-1));
   assert.equal(report.domMarker, true); assert.equal(report.directLaunchRefused, true); assert.equal(report.pageTransportHeadersAbsent, true);

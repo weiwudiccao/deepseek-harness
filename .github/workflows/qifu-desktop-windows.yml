@@ -59,8 +59,7 @@ jobs:
         run: npm ci
 
       - name: Verify packaged isolated browser runtime
-        working-directory: qifu/desktop
-        run: npx --no-install electron scripts/check-electron-browser-runtime.cjs --runtimePath "${{ github.workspace }}/dist-exe/deepseek-harness-sdk-runtime-win-x64.exe" --DSH_ROOT "${{ github.workspace }}/dist-exe"
+        run: node qifu/desktop/scripts/check-browser-runtime.mjs --runtimePath "${{ github.workspace }}/dist-exe/deepseek-harness-sdk-runtime-win-x64.exe" --DSH_ROOT "${{ github.workspace }}/dist-exe"
 
       - name: Build Windows portable client
         working-directory: qifu/desktop

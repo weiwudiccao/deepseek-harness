@@ -31,3 +31,5 @@ Browser guidance directs the model to this tool. A separate tool guard rejects s
 The tool provides DOM evidence without screenshots, layout fidelity, interactive automation, or existing employee browser logins. HTTP(S) navigation has no destination-host allowlist and provides no network isolation. The authenticated desktop bridge is required; a standalone CLI does not silently launch another browser when it is absent.
 
 Loopback HTTP tests cover endpoint and token validation, URL rejection, bounded multibyte DOM, malformed responses, transport failures, cancellation acknowledgement, timeout, disposal, and failed cleanup. They do not establish native renderer settings or the absence of operating-system prompts on a real installation; release acceptance owns that evidence.
+
+The release-test parent owns temporary desktop data and removes it after Electron exits. Removing an active Electron data directory can fail under Windows file locking; teardown errors must remain visible and terminate the test as a failure.

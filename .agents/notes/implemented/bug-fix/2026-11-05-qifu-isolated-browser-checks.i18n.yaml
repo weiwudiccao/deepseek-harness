@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-qifu-isolated-browser-checks.md
-2026-11-05-qifu-isolated-browser-checks.md: 923e1135a386a1e0d887f6c05c61023354128e6a
-2026-11-05-qifu-isolated-browser-checks.zh.md: 03915eb2a1e66407b0acea56f4ef8e083168b75e
+2026-11-05-qifu-isolated-browser-checks.md: cbb1358d04d6524c35b1cd8b8f02226b4a73ecff
+2026-11-05-qifu-isolated-browser-checks.zh.md: 7fe50d50b469ecacaa17a36dd6e2f03998f386c1
